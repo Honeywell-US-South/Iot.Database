@@ -375,6 +375,24 @@ public class IotValue
     public bool IsChar => char.TryParse(Value, out _);
 
     /// <summary>
+    /// Check if value is String type
+    /// </summary>
+    [JsonIgnore]
+    [BsonIgnore]
+    public bool IsString { 
+        get
+        {
+            // Check if the object is null
+            if (IsNull || IsDateTime || IsNumeric || IsBoolean)
+            {
+                return false;
+            }
+
+            return (Value is string || IsChar);
+        }
+    }
+
+    /// <summary>
     /// Check if value is T type
     /// </summary>
     public bool IsObject<T>() where T : class
