@@ -372,8 +372,55 @@ public class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
-    public bool IsChar => char.TryParse(Value, out _);
+    public bool IsChar => Value?.Length == 1 &&  char.TryParse(Value, out _);
 
+    /// <summary>
+    /// Check if value is Json type
+    /// </summary>
+    [JsonIgnore]
+    [BsonIgnore]
+    public bool IsJson
+    {
+        get
+        {
+            var strInput = Value;
+            if (string.IsNullOrWhiteSpace(strInput))
+            {
+                return false;
+            }
+
+            strInput = strInput.Trim();
+            if ((strInput.StartsWith("{") && strInput.EndsWith("}")) || // For object
+                (strInput.StartsWith("[") && strInput.EndsWith("]")))   // For array
+            {
+                try
+                {
+                    var obj = JsonDocument.Parse(strInput);
+                    return true;
+                }
+                catch (JsonException)
+                {
+                    return false;
+                }
+                catch (Exception) // Some other exception
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Is value a string (not guid, not numeric, not char, and not json)
+    /// </summary>
+    [JsonIgnore]
+    [BsonIgnore]
+    public bool IsString => !IsGuid && !IsNumeric && !IsChar && !IsJson;
+    
     /// <summary>
     /// Check if value is T type
     /// </summary>
