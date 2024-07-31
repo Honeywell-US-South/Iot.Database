@@ -420,24 +420,6 @@ public class IotValue
     [JsonIgnore]
     [BsonIgnore]
     public bool IsString => !IsNull && !IsBoolean && !IsDateTime && !IsGuid && !IsNumeric && !IsChar && !IsJson;
-    
-    /// <summary>
-    /// Check if value is String type
-    /// </summary>
-    [JsonIgnore]
-    [BsonIgnore]
-    public bool IsString { 
-        get
-        {
-            // Check if the object is null
-            if (IsNull || IsDateTime || IsNumeric || IsBoolean)
-            {
-                return false;
-            }
-
-            return (Value is string || IsChar);
-        }
-    }
 
     /// <summary>
     /// Check if value is T type
