@@ -458,9 +458,9 @@ public class IotValue
     /// Priority 4: Fire Safety
     /// Priority 5: Emergency
     /// Priority 6: Safety
-    /// Priority 7: Control Strategy
+    /// Priority 7: Available
     /// Priority 8: Manual Operator
-    /// Priority 9: Available
+    /// Priority 9: Control Strategy
     /// Priority 10: Available
     /// Priority 11: Available
     /// Priority 12: Available
@@ -488,9 +488,9 @@ public class IotValue
     /// Priority 4: Fire Safety
     /// Priority 5: Emergency
     /// Priority 6: Safety
-    /// Priority 7: Control Strategy
+    /// Priority 7: Available
     /// Priority 8: Manual Operator
-    /// Priority 9: Available
+    /// Priority 9: Control Strategy
     /// Priority 10: Available
     /// Priority 11: Available
     /// Priority 12: Available
@@ -517,9 +517,9 @@ public class IotValue
     /// Priority 4: Fire Safety
     /// Priority 5: Emergency
     /// Priority 6: Safety
-    /// Priority 7: Control Strategy
+    /// Priority 7: Available
     /// Priority 8: Manual Operator
-    /// Priority 9: Available
+    /// Priority 9: Control Strategy
     /// Priority 10: Available
     /// Priority 11: Available
     /// Priority 12: Available
@@ -546,9 +546,9 @@ public class IotValue
     /// Priority 4: Fire Safety
     /// Priority 5: Emergency
     /// Priority 6: Safety
-    /// Priority 7: Control Strategy
+    /// Priority 7: Available
     /// Priority 8: Manual Operator
-    /// Priority 9: Available
+    /// Priority 9: Control Strategy
     /// Priority 10: Available
     /// Priority 11: Available
     /// Priority 12: Available
@@ -574,7 +574,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueManualOperatorOverride(object? value)
+    public bool SetValue01ManualOperatorOverride(object? value)
     {
         ValidateType(value);
         return SetValue(1, value);
@@ -585,7 +585,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueCritica(object? value) => SetValue(2, value);
+    public bool SetValue02Critica(object? value) => SetValue(2, value);
 
 
     /// <summary>
@@ -593,7 +593,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueLifeSafety(object? value) => SetValue(3, value);
+    public bool SetValue03LifeSafety(object? value) => SetValue(3, value);
 
 
     /// <summary>
@@ -601,7 +601,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueFireSafety(object? value) => SetValue(4, value);
+    public bool SetValue04FireSafety(object? value) => SetValue(4, value);
 
 
     /// <summary>
@@ -609,7 +609,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueEmergency(object? value) => SetValue(5, value);
+    public bool SetValue05Emergency(object? value) => SetValue(5, value);
 
 
     /// <summary>
@@ -617,15 +617,15 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueSafety(object? value) => SetValue(6, value);
+    public bool SetValue06Safety(object? value) => SetValue(6, value);
 
 
     /// <summary>
-    /// Priority 7: Control Strategy
+    /// Priority 7: Free
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueControlStrategy(object? value) => SetValue(7, value);
+    public bool SetValue07Free(object? value) => SetValue(7, value);
 
 
     /// <summary>
@@ -633,15 +633,15 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueManualOperator(object? value) => SetValue(8, value);
+    public bool SetValue08ManualOperator(object? value) => SetValue(8, value);
 
 
     /// <summary>
-    /// Priority 9: Free
+    /// Priority 9: Control Strategy
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueFree09(object? value) => SetValue(9, value);
+    public bool SetValue09ControlStrategy(object? value) => SetValue(9, value);
 
 
     /// <summary>
@@ -649,7 +649,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueFree10(object? value) => SetValue(10, value);
+    public bool SetValue10Free(object? value) => SetValue(10, value);
 
 
     /// <summary>
@@ -657,7 +657,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueFree11(object? value) => SetValue(11, value);
+    public bool SetValue11Free(object? value) => SetValue(11, value);
 
 
     /// <summary>
@@ -665,7 +665,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueFree12(object? value) => SetValue(12, value);
+    public bool SetValue12Free(object? value) => SetValue(12, value);
 
 
     /// <summary>
@@ -673,7 +673,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueFree13(object? value) => SetValue(13, value);
+    public bool SetValue13Free(object? value) => SetValue(13, value);
 
 
     /// <summary>
@@ -681,7 +681,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueFree14(object? value) => SetValue(14, value);
+    public bool SetValue14Free(object? value) => SetValue(14, value);
 
 
     /// <summary>
@@ -689,7 +689,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueDefault(object? value) => SetValue(15, value);
+    public bool SetValue15Default(object? value) => SetValue(15, value);
 
 
     /// <summary>
@@ -697,7 +697,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValueDefaultFallback(object? value) => SetValue(16, value);
+    public bool SetValue16DefaultFallback(object? value) => SetValue(16, value);
 
     #endregion
 
