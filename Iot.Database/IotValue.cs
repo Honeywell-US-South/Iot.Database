@@ -419,7 +419,7 @@ public class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
-    public bool IsString => !IsGuid && !IsNumeric && !IsChar && !IsJson;
+    public bool IsString => !IsNull && !IsBoolean && !IsDateTime && !IsGuid && !IsNumeric && !IsChar && !IsJson;
     
     /// <summary>
     /// Check if value is T type
