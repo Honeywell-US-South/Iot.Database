@@ -7,4 +7,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Example.Shared\Example.Shared.csproj" />
+    <ProjectReference Include="..\Iot.Database\Iot.Database.csproj" />
+  </ItemGroup>
+
 </Project>

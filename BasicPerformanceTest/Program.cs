@@ -1,4 +1,5 @@
-﻿using ExampleShared;
+﻿
+using Example.Shared.Models;
 using Iot.Database;
 using System.Diagnostics;
 

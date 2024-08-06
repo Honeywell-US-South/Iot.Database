@@ -28,7 +28,7 @@ namespace Iot.Database
         private IotDatabase _iotDb;
         private List<ColumnInfo> _blockChainAttributes = new();
         private List<ColumnInfo> _timeSeriesAttributes = new();
-        private ConcurrentDictionary<string, BlockCollection> _blocks = new();
+        private ConcurrentDictionary<string, IBlockCollection> _blocks = new();
         private ConcurrentDictionary<string, TsCollection> _ts = new();
 
         private readonly ConcurrentQueue<T> _attributeQueue = new ConcurrentQueue<T>();
@@ -226,7 +226,7 @@ namespace Iot.Database
             {
                 var blockPath = Path.Combine(DbPath, "BlockChain");
                 Helper.MachineInfo.CreateDirectory(blockPath);
-                _blocks[name] = new BlockCollection(blockPath, $"{DbName}_{name}");
+                _blocks[name] = new BlockCollection(blockPath, $"{DbName}_{name}", _iotDb._password);
                 _blocks[name].ExceptionOccurred += OnBlockExceptionOccurred;
             }
 
@@ -239,7 +239,7 @@ namespace Iot.Database
             {
                 if (val.IsBlockChain && val.Value != null)
                 {
-                    _blocks[val.Name].Insert(new BsonValue(val.Value));
+                    Blocks(val.Name)?.Insert(new BsonValue(val.Value));
                 }
             }
             else
@@ -248,7 +248,7 @@ namespace Iot.Database
                 {
                     var value = bi.PropertyInfo.GetValue(entity);
                     if (value == null) continue;
-                    _blocks[bi.Name].Insert(new BsonValue(value));
+                    Blocks(bi.Name)?.Insert(new BsonValue(value));
                 }
             }
 
@@ -1087,7 +1087,7 @@ namespace Iot.Database
             {
                 if (val.IsTimeSeries && val.Value != null)
                 {
-                    _ts[val.Name].Insert(idVal.ToString() ?? val.Name, new BsonValue(val.Value), val.Timestamp);
+                    TimeSeries(val.Name)?.Insert(idVal.ToString() ?? val.Name, new BsonValue(val.Value), val.Timestamp);
                 }
             }
             else
@@ -1096,7 +1096,7 @@ namespace Iot.Database
                 {
                     var value = tsi.PropertyInfo.GetValue(entity);
                     if (value == null) continue;
-                    _ts[tsi.Name].Insert(idVal.ToString() ?? tsi.Name, new BsonValue(value), DateTime.UtcNow);
+                    TimeSeries(tsi.Name)?.Insert(idVal.ToString() ?? tsi.Name, new BsonValue(value), DateTime.UtcNow);
                 }
             }
         }
