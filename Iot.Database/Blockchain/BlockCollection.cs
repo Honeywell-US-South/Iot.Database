@@ -56,7 +56,7 @@ namespace Iot.Database.Blockchain
         /// <summary>
         /// Insert a new entity to this collection. Document Id must be a new value in collection - Returns document Id
         /// </summary>
-        internal BsonValue Insert(BsonValue data)
+        public BsonValue Insert(BsonValue data)
         {
             var lastBlock = Get();
             if (lastBlock != null && lastBlock.Data == data)
@@ -166,6 +166,8 @@ namespace Iot.Database.Blockchain
             }
             return vList;
         }
+
+        
         #endregion
     }
 }

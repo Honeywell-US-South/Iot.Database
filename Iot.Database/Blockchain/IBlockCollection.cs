@@ -11,5 +11,6 @@
         bool IsBlockConsistent(int count);
         List<(Block Block, bool Valid)> VerifyBlockConsistency(DateTime startDate, DateTime endDate);
         List<(Block Block, bool Valid)> VerifyBlockConsistency(int count);
+        BsonValue Insert(BsonValue data);
     }
 }

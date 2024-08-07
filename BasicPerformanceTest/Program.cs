@@ -1,4 +1,5 @@
-﻿using ExampleShared;
+﻿
+using Example.Shared.Models;
 using Iot.Database;
 using System.Diagnostics;
 
@@ -11,6 +12,10 @@ namespace BasicPerformanceTest
             // Specify database name and path
             var dbName = "MyIotDatabase";
             var dbPath = @"c:\temp";
+
+            //delete the old database file
+            var dbFile = Path.Combine(dbPath, dbName);
+            if (File.Exists(dbFile)) File.Delete(dbFile);
 
             // Create an instance of IoTData
             var iotData = new IotDatabase(dbName, dbPath, "encryption password");
