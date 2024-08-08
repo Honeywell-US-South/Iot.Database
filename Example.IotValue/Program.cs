@@ -16,9 +16,20 @@ namespace Example.IotValue
 
             // Create a table with the class name as the table name
             var pointTbl = iotData.Tables<IotPoint>();
-
+            string input = string.Empty;
             var point = new IotPoint();
-            point.Name = "";
+            point.Name = "Hello";
+            point.TimeSeries = true;
+            point.SetValue15Default(15);
+            var id = pointTbl.Insert(point);
+            while (!input.Equals("q", StringComparison.OrdinalIgnoreCase))
+            {
+                
+                point.SetValue15Default(15);
+                pointTbl.Update(point);
+                var tsValue = pointTbl.GetTimeSeries(point, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow);
+                input = Console.ReadLine();
+            }
         }
     }
 }

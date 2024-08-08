@@ -26,8 +26,6 @@ namespace Iot.Database
         private bool _processingQueue = false;
         private ConcurrentQueue<T> _updateEntityQueue = new ConcurrentQueue<T>();
         private IotDatabase _iotDb;
-        private List<ColumnInfo> _blockChainAttributes = new();
-        private List<ColumnInfo> _timeSeriesAttributes = new();
         private ConcurrentDictionary<string, IBlockCollection> _blocks = new();
         private ConcurrentDictionary<string, TsCollection> _ts = new();
 
@@ -49,8 +47,7 @@ namespace Iot.Database
         {
             PreCheck();
             SetGlobalIgnore<T>();
-            _blockChainAttributes = ReflectionHelper.GetTypeColumnsWithAttribute<BlockChainValueAttribute>(typeof(T)).ToList();
-            _timeSeriesAttributes = ReflectionHelper.GetTypeColumnsWithAttribute<TimeSeriesAttribute>(typeof(T)).ToList();
+            //_blockChainAttributes = ReflectionHelper.GetTypeColumnsWithAttribute<BlockChainValueAttribute>(typeof(T)).ToList();
             _iotDb = iotDb;
             TableInfo = new TableInfo(typeof(T));
             foreach (var ft in TableInfo.ForeignTables)
@@ -197,40 +194,24 @@ namespace Iot.Database
         #endregion
 
         #region BlockChain
-        public List<ColumnInfo> BlockChainAttributes
+       
+        
+
+        public IBlockCollection? Blocks(string iotValueGuid)
         {
-            get
+            return null;//dev - to be remove after test
+            lock (SyncRoot)
             {
-                return _blockChainAttributes;
+                if (!_blocks.ContainsKey(iotValueGuid))
+                {
+                    var blockPath = Path.Combine(DbPath, DbName, "BlockChain");
+
+                    Helper.MachineInfo.CreateDirectory(blockPath);
+                    _blocks[iotValueGuid] = new BlockCollection(blockPath, $"{DbName}_{iotValueGuid}", _iotDb._password);
+                    _blocks[iotValueGuid].ExceptionOccurred += OnBlockExceptionOccurred;
+                }
             }
-        }
-
-        public ColumnInfo TagColumnAsBlockChain(string name, string description = "")
-        {
-            var prop = ReflectionHelper.GetProperty(typeof(T), name);
-            if (prop == null) throw new KeyNotFoundException(name);
-            BlockChainValueAttribute attribute = new BlockChainValueAttribute(description);
-            ColumnInfo bi = new(prop, attribute);
-            _blockChainAttributes.Add(bi);
-            return bi;
-        }
-
-        public IBlockCollection? Blocks(string name)
-        {
-            if (!_blockChainAttributes.Any(x => x.Name == name))
-            {
-                return null; // throw new EntryPointNotFoundException($"{typeof(T).Name} does not have BlockChainValueAttribute with name {name}.");
-            }
-
-            if (!_blocks.ContainsKey(name))
-            {
-                var blockPath = Path.Combine(DbPath, "BlockChain");
-                Helper.MachineInfo.CreateDirectory(blockPath);
-                _blocks[name] = new BlockCollection(blockPath, $"{DbName}_{name}", _iotDb._password);
-                _blocks[name].ExceptionOccurred += OnBlockExceptionOccurred;
-            }
-
-            return _blocks[name];
+            return _blocks[iotValueGuid];
         }
 
         private void WriteToBlocks(T entity)
@@ -242,15 +223,7 @@ namespace Iot.Database
                     Blocks(val.Name)?.Insert(new BsonValue(val.Value));
                 }
             }
-            else
-            {
-                foreach (var bi in _blockChainAttributes)
-                {
-                    var value = bi.PropertyInfo.GetValue(entity);
-                    if (value == null) continue;
-                    Blocks(bi.Name)?.Insert(new BsonValue(value));
-                }
-            }
+           
 
         }
 
@@ -812,6 +785,32 @@ namespace Iot.Database
         }
         #endregion
 
+        #region G
+        public TsValue? GetTimeSeries(T entity, DateTime start, DateTime end)
+        {
+            TsValue? result = null;
+
+            if (entity is IotValue iotValue)
+            {
+                result = TimeSeries(iotValue.Guid)?.Get(start, end);
+            }
+
+            return result;
+        }
+
+        public TsValue? GetTimeSeries(T entity, DateTime start, DateTime end, TimeSpan interval)
+        {
+            TsValue? result = null;
+
+            if (entity is IotValue iotValue)
+            {
+                result = TimeSeries(iotValue.Guid)?.Get(start, end, interval);
+            }
+
+            return result;
+        }
+        #endregion
+
         #region I
 
         private void CheckConstraints(T entity)
@@ -1031,8 +1030,7 @@ namespace Iot.Database
         #region Set
         public long SetAll(string columnName, BsonValue? value)
         {
-            if (_blockChainAttributes.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
-
+           
             // Calling the UpdateMany method with the specified transform and predicate expressions.
             var updatedCount = UpdateMany($"{{ {columnName}: '{value}' }}", "_id > 0");
 
@@ -1042,65 +1040,36 @@ namespace Iot.Database
 
 
         #region TimeSeries
-        public List<ColumnInfo> TimeSeriesAttributes
-        {
-            get
-            {
-                return _timeSeriesAttributes;
-            }
-        }
 
-        public ColumnInfo TagColumnAsTimeSeries(string name, string description = "")
+        private ITsCollection? TimeSeries(string iotValueGuid)
         {
-            var prop = ReflectionHelper.GetProperty(typeof(T), name);
-            if (prop == null) throw new KeyNotFoundException(name);
-            TimeSeriesAttribute attribute = new TimeSeriesAttribute(description);
-            ColumnInfo bi = new(prop, attribute);
-            _blockChainAttributes.Add(bi);
-            return bi;
-        }
-
-        public ITsCollection? TimeSeries(string name)
-        {
-            if (!_timeSeriesAttributes.Any(x => x.Name == name))
+            lock (SyncRoot)
             {
-                return null; // throw new EntryPointNotFoundException($"{typeof(T).Name} does not have BlockChainValueAttribute with name {name}.");
+                if (!_ts.ContainsKey(iotValueGuid))
+                {
+                    var tsPath = Path.Combine(DbPath, DbName, "TimeSeries");
+                    Helper.MachineInfo.CreateDirectory(tsPath);
+                    _ts[iotValueGuid] = new TsCollection(tsPath, $"{DbName}_{iotValueGuid}", _iotDb._password);
+                    _ts[iotValueGuid].ExceptionOccurred += OnBlockExceptionOccurred;
+                }
             }
-
-            if (!_ts.ContainsKey(name))
-            {
-                var tsPath = Path.Combine(DbPath, "TimeSeries");
-                Helper.MachineInfo.CreateDirectory(tsPath);
-                _ts[name] = new TsCollection(tsPath, $"{DbName}_{name}");
-                _ts[name].ExceptionOccurred += OnBlockExceptionOccurred;
-            }
-            return _ts[name];
+            return _ts[iotValueGuid];
         }
 
         private void WriteToTimeSeries(T entity)
         {
-            var idProp = GetIdProperty(typeof(T));
-            if (idProp == null) return;
-            var idVal = idProp.GetValue(entity);
-            if (idVal == null) return;
-            if (entity is IotValue val)
+            if (entity is IotValue iotValue)
             {
-                if (val.IsTimeSeries && val.Value != null)
+                if (iotValue.IsTimeSeries)
                 {
-                    TimeSeries(val.Name)?.Insert(idVal.ToString() ?? val.Name, new BsonValue(val.Value), val.Timestamp);
+                    TimeSeries(iotValue.Guid)?.Insert(iotValue);
                 }
             }
-            else
-            {
-                foreach (var tsi in _timeSeriesAttributes)
-                {
-                    var value = tsi.PropertyInfo.GetValue(entity);
-                    if (value == null) continue;
-                    TimeSeries(tsi.Name)?.Insert(idVal.ToString() ?? tsi.Name, new BsonValue(value), DateTime.UtcNow);
-                }
-            }
+           
         }
 
+
+        
         
         #endregion
 
@@ -1155,7 +1124,7 @@ namespace Iot.Database
         /// <param name="entity"></param>
         public void UpdateQueue(T entity)
         {
-            if (_blockChainAttributes.Count > 0) { throw new NotSupportedException("UpdateQueue is not supported for T with BlockChainValue attributes"); }
+             
             _updateEntityQueue.Enqueue(entity);
 
         }
@@ -1167,12 +1136,11 @@ namespace Iot.Database
         {
             lock (SyncRoot)
             {
-                WriteToBlocks(entity);
+                _attributeQueue.Enqueue(entity);
                 return _collection.Update(entity);
             }
 
         }
-
 
         /// <summary>
         /// Update a document in this _collection. Returns false if not found document in collection
@@ -1181,7 +1149,7 @@ namespace Iot.Database
         {
             lock (SyncRoot)
             {
-                WriteToBlocks(entity);
+                _attributeQueue.Enqueue(entity);
                 return _collection.Update(id, entity);
             }
 
@@ -1196,7 +1164,7 @@ namespace Iot.Database
             {
                 foreach (var entity in entities)
                 {
-                    WriteToBlocks(entity);
+                    _attributeQueue.Enqueue(entity);
                 }
                 return _collection.Update(entities);
             }
@@ -1209,7 +1177,7 @@ namespace Iot.Database
         /// </summary>
         public int UpdateMany(BsonExpression transform, BsonExpression predicate)
         {
-            if (_blockChainAttributes.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
+            
             lock (SyncRoot)
             {
                 return _collection.UpdateMany(transform, predicate);
@@ -1223,8 +1191,7 @@ namespace Iot.Database
         /// </summary>
         public int UpdateMany(Expression<Func<T, T>> extend, Expression<Func<T, bool>> predicate)
         {
-            if (_blockChainAttributes.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
-
+            
             lock (SyncRoot)
             {
 

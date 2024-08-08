@@ -11,16 +11,14 @@ namespace Iot.Database.TimeSeries.ValueDeltaT
     internal class BaseValue
     {
         public Guid Id { get; set; }
-        public string EntityId { get; set; }
-        public BsonValue Value { get; set; }
+        public IotValue Value { get; set; }
         public DateTime Start { get; set; } = DateTime.UtcNow;
 
 
-        public BaseValue(string entityId, BsonValue value, DateTime start)
+        public BaseValue(IotValue value)
         {
-            EntityId = entityId;
             Value = value;
-            Start = start;
+            Start = value.Timestamp == DateTime.MinValue?DateTime.UtcNow:value.Timestamp;
         }
 
         public (int Group, int Milliseconds) CalculateDeltaT(DateTime timestamp)

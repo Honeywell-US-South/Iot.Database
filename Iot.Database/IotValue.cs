@@ -1,5 +1,4 @@
-﻿using Iot.Database.Extensions;
-using Iot.Database.Helper;
+﻿using Iot.Database.Helper;
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
@@ -12,7 +11,7 @@ namespace Iot.Database;
 [Serializable]
 public class IotValue
 {
-
+    public string Guid { get; set; } = System.Guid.NewGuid().ToString();
     public string Name { get; set; }
     public string Description { get; set; } = string.Empty;
     public string?[] Values { get; set; } = new string?[16];
@@ -103,17 +102,16 @@ public class IotValue
     {
         if (index < 0 && index >= Values.Length) return false;
 
-        if (AllowManualOperator && index == 7)
+        if (!AllowManualOperator && (index == 7 || index == 0))
         {
             Values[index] = null;
             Timestamps[index] = null;
-            //HasValues[index] = false;
             return false; //manual operator 
         }
 
         Values[index] = value;
-        Timestamps[index] = DateTime.UtcNow;
-        //HasValues[index] = value != null;
+        Timestamps[index] = value == null?null: DateTime.UtcNow;
+        
 
         return true;
     }
@@ -221,6 +219,39 @@ public class IotValue
         set => Flags = value ? Flags.Enable(IotValueFlags.LogChange) : Flags.Disable(IotValueFlags.LogChange);
     }
 
+    [JsonIgnore]
+    [BsonIgnore]
+    public bool IsValueInterpolated
+    {
+        get { return ValueInterpolated; }
+        set { ValueInterpolated = value; }
+    }
+
+    [JsonIgnore]
+    [BsonIgnore]
+    public bool ValueInterpolated
+    {
+        get => Flags.IsEnabled(IotValueFlags.ValueInterpolated);
+        set => Flags = value ? Flags.Enable(IotValueFlags.ValueInterpolated) : Flags.Disable(IotValueFlags.ValueInterpolated);
+    }
+
+    [JsonIgnore]
+    [BsonIgnore]
+    public bool IsPriority9Only
+    {
+        get { return Priority9Only; }
+        set { Priority9Only = value; }
+    }
+
+    [JsonIgnore]
+    [BsonIgnore]
+    public bool Priority9Only
+    {
+        get => Flags.IsEnabled(IotValueFlags.Priority9Only);
+        set => Flags = value ? Flags.Enable(IotValueFlags.Priority9Only) : Flags.Disable(IotValueFlags.Priority9Only);
+    }
+
+    
     #endregion
 
     [JsonIgnore]
@@ -269,6 +300,13 @@ public class IotValue
     }
 
     #region Check
+
+    /// <summary>
+    /// Check if value is manually overriden by operator
+    /// </summary>
+    [JsonIgnore]
+    [BsonIgnore]
+    public bool IsManual => !IsPriority9Only && (Priority == 1 || Priority == 8);
 
     /// <summary>
     /// Check if value is Null
@@ -503,7 +541,8 @@ public class IotValue
     /// <returns>true/false</returns>
     public bool SetValue(int priority, object? value)
     {
-        ValidateType(value);
+        Validate(priority, value);
+        if (IsPriority9Only && priority != 9) return false;
         int index = priority - 1;
 
         return SetRawValue(index, ToStringValue(value));
@@ -533,7 +572,7 @@ public class IotValue
     /// <returns>true/false</returns>
     public bool SetValue(int priority, string? value)
     {
-        ValidateType(value);
+        Validate(priority, value);
         int index = priority - 1;
         return SetRawValue(index, ToStringValue(value));
     }
@@ -562,7 +601,7 @@ public class IotValue
     /// <returns>true/false</returns>
     public bool SetObject<T>(int priority, T? value) where T : class
     {
-        ValidateType(value);
+        Validate(priority, value);
         int index = priority - 1;
         return SetRawValue(index, ToStringValue(value));
     }
@@ -591,7 +630,7 @@ public class IotValue
     /// <returns>true/false</returns>
     public bool SetPassword(int priority, string? password)
     {
-        ValidateType(password);
+        Validate(priority, password);
         int index = priority - 1;
         IsPasswordValue = true;
         return SetRawValue(index, ToPasswordHash(password));
@@ -603,11 +642,7 @@ public class IotValue
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/fals</returns>
-    public bool SetValue01ManualOperatorOverride(object? value)
-    {
-        ValidateType(value);
-        return SetValue(1, value);
-    }
+    public bool SetValue01ManualOperatorOverride(object? value) => SetValue(1, value);
 
     /// <summary>
     /// Priority 2: Critical Equipment Control
@@ -939,13 +974,19 @@ public class IotValue
 
     #region Helper
 
+
     /// <summary>
-    /// Check value datatype. If DataType is Attribute, all types are accepted.
+    /// Validate value and priority
     /// </summary>
+    /// <param name="priority"></param>
     /// <param name="value"></param>
     /// <exception cref="ArgumentException"></exception>
-    private void ValidateType(object? value)
+    private void Validate(int priority, object? value)
     {
+        if (IsPriority9Only && !(priority == 9 || priority == 16))
+        {
+            throw new ArgumentException($"Invalid priority. Expected priority 9 or fallback only.");
+        }
         if (value == null) return;
         if (StrictDataType == null) return;
         if (value.GetType() != DataType)
