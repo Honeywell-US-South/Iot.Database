@@ -183,6 +183,23 @@ internal abstract class BaseDatabase : IDisposable
         return null;
     }
 
+    internal static PropertyInfo? GetGuidProperty(Type collectionClassType)
+    {
+
+        PropertyInfo? idProperty = collectionClassType.GetProperty($"Guid");
+
+        if (idProperty != null)
+        {
+            // Property exists, now you can get its type
+            Type idType = idProperty.PropertyType;
+
+            // Check if the property type is int or long
+            return idProperty;
+        }
+
+        return null;
+    }
+
     internal static PropertyInfo? GetRefTableIdProperty(Type collectionClassType, Type refTableType)
     {
 

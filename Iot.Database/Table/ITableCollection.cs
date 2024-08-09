@@ -59,6 +59,9 @@ namespace Iot.Database
         T FindOne(Expression<Func<T, bool>> predicate);
         T FindOne(Query query);
         T FindOne(string predicate, BsonDocument parameters);
+
+        TsValue? GetTimeSeries(T entity, DateTime start, DateTime end);
+
         void Insert(BsonValue id, T entity);
         int Insert(IEnumerable<T> entities);
         BsonValue Insert(T entity);
