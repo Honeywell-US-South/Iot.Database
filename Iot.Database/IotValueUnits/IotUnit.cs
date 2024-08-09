@@ -77,5 +77,9 @@ public partial struct IotUnit : IEquatable<IotUnit>
         throw new NotImplementedException($"Conversion from {this.Symbol} to {targetUnit.Symbol} is not implemented.");
     }
 
-    
+    // Overriding ToString to display the unit's symbol
+    public override string ToString()
+    {
+        return Symbol;
+    }
 }
