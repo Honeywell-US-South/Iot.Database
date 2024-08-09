@@ -7,11 +7,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Iot.Database", "Iot.Databas
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicPerformanceTest", "BasicPerformanceTest\BasicPerformanceTest.csproj", "{7F4A303B-D1B7-4E94-89B8-BDE2F4461F92}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Example.IotValue", "Example.IotValue\Example.IotValue.csproj", "{F8FF4C0D-4EAE-4998-8228-3B2BC668F6D1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Example.IotValue", "Example.IotValue\Example.IotValue.csproj", "{F8FF4C0D-4EAE-4998-8228-3B2BC668F6D1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Example.Shared", "Example.Shared\Example.Shared.csproj", "{CF81BE56-7D93-41CE-BBE3-11CF2D83DAE2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Example.Shared", "Example.Shared\Example.Shared.csproj", "{CF81BE56-7D93-41CE-BBE3-11CF2D83DAE2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Example.BasicDb", "Example.BasicDb\Example.BasicDb.csproj", "{BF63C5B1-F7E1-455E-A128-8267F8C21395}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Example.BasicDb", "Example.BasicDb\Example.BasicDb.csproj", "{BF63C5B1-F7E1-455E-A128-8267F8C21395}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

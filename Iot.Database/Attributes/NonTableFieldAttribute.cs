@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Iot.Database.Attributes
+﻿namespace Iot.Database.Attributes
 {
     [AttributeUsage(AttributeTargets.Property)] // Apply to properties only.
     public class NonTableFieldAttribute : Attribute

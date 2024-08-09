@@ -1,7 +1,4 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
-
-namespace Iot.Database
+﻿namespace Iot.Database
 {
     /// <summary>
     /// Async implementation of ManualResetEvent

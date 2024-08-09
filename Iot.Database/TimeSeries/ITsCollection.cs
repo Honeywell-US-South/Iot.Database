@@ -1,10 +1,10 @@
 ﻿
-namespace Iot.Database.TimeSeries
+namespace Iot.Database.TimeSeries;
+
+internal interface ITsCollection
 {
-    internal interface ITsCollection
-    {
-        List<TsItem> Get(DateTime start, DateTime end);
-        List<TsItem> Get(DateTime start, DateTime end, TimeSpan interval);
-        void Insert(string entityId, BsonValue data, DateTime? timestamp);
-    }
+    long Count();
+    TsValue? Get(DateTime start, DateTime end);
+    TsValue? Get(DateTime start, DateTime end, TimeSpan interval);
+    void Insert(IotValue value);
 }
