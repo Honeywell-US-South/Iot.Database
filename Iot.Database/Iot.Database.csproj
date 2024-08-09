@@ -7,10 +7,4 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Reference Include="UnitsNet">
-      <HintPath>UnitsNet\UnitsNet.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
 </Project>

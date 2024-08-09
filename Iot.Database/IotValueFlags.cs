@@ -10,7 +10,7 @@ public enum IotValueFlags
     PasswordValue = 1 << 3,
     LogChange = 1 << 4,
     ValueInterpolated = 1 << 5,
-    Priority9Only = 1 << 6, //Control strategy only - this flag disable all other inputs except for 16 (fall back)
+    Priority9Only = 1 << 6, //Control strategy only - this flag disable all other inputs except for 9 (controls trategy) and 16 (fall back)
 }
 
 public static class IotValueFlagsExtensions
