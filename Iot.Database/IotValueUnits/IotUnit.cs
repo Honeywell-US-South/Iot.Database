@@ -2,11 +2,14 @@
 
 public partial struct IotUnit : IEquatable<IotUnit>
 {
-    public string Name { get; set; } = Units.no_unit.Name;
-    public string Symbol { get; set; } = Units.no_unit.Symbol;
-    public string Group { get; set; } = Units.no_unit.Group;
-
-    public IotUnit() { }
+    public string Name { get; set; }
+    public string Symbol { get; set; } 
+    public string Group { get; set; }
+    
+    public IotUnit() {
+    
+        this = Units.no_unit;
+    }
     public IotUnit(string group, string name, string symbol)
     {
         Group = group;
