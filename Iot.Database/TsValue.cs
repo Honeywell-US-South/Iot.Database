@@ -10,6 +10,8 @@ public class TsValue
     {
         IotValueGuid = iotValue.Guid;
         Series = new List<IotValue>();
-        Series.Add (iotValue);
+        Series.Add (iotValue.Copy());
     }
+
+    
 }

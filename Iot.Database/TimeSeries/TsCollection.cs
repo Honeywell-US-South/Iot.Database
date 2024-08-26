@@ -145,11 +145,11 @@ internal class TsCollection : BaseDatabase, ITsCollection
                 foreach (var delta in timeDeltas.GetTimeDeltas())
                 {
                     cumulativeTime += delta;
-                    var timestamp = value.Start.AddMilliseconds(cumulativeTime);
+                    var timestamp = value.Start.ToUniversalTime().AddMilliseconds(cumulativeTime);
                     if (timestamp >= start && timestamp <= end)
                     {
                         value.Value.Timestamps[value.Value.Priority -1] = timestamp;
-                        tsValue.Series.Add(value.Value);
+                        tsValue.Series.Add(value.Value.Copy());
                     }
                 }
             }
@@ -165,18 +165,18 @@ internal class TsCollection : BaseDatabase, ITsCollection
             if (lastValue == null)
             {
                 if (result == null) result = new(iotValue);
-                else result.Series.Add(iotValue);
-                lastValue = iotValue;
+                else result.Series.Add(iotValue.Copy());
+                lastValue = iotValue.Copy();
             } else
             {
-                var v = iotValue;
+                var v = iotValue.Copy();
                 v.Values = lastValue.Values;
                 v.Timestamps = lastValue.Timestamps;
                 v.Values[iotValue.Priority-1] = iotValue.Value;
-                v.Timestamps[iotValue.Priority - 1] = iotValue.Timestamp;
+                v.Timestamps[iotValue.Priority - 1] = iotValue.Timestamp.ToUniversalTime();
                 if (result == null) result = new(v);
-                else result.Series.Add(v);
-                lastValue = v;
+                else result.Series.Add(v.Copy());
+                lastValue = v.Copy();
             }
         }
 
@@ -212,18 +212,18 @@ internal class TsCollection : BaseDatabase, ITsCollection
                     double t = (current - nearestBefore.Timestamp).TotalMilliseconds / (nearestAfter.Timestamp - nearestBefore.Timestamp).TotalMilliseconds;
                     double interpolatedValue = double.Parse(nearestBefore.Value) * (1 - t) + double.Parse(nearestAfter.Value) * t;
                     
-                    var iv = nearestBefore;
+                    var iv = nearestBefore.Copy();
                     iv.Values[0] = interpolatedValue.ToString();
-                    iv.Timestamps[0] = nearestBefore.Timestamp.AddMilliseconds(t);
+                    iv.Timestamps[0] = nearestBefore.Timestamp.ToUniversalTime().AddMilliseconds(t);
                     iv.Flags.Enable(IotValueFlags.ValueInterpolated);
                     if (result == null) result = new(iv);
-                    else result.Series.Add(iv);
+                    else result.Series.Add(iv.Copy());
                 }
             }
             else if (nearestBefore != default)
             {
                 if (result == null) result = new(nearestBefore);
-                else result.Series.Add(nearestBefore);
+                else result.Series.Add(nearestBefore.Copy());
             }
 
             current = current.Add(interval);

@@ -78,6 +78,7 @@ public partial class IotValue
         }
     }
 
+
     [JsonIgnore]
     [BsonIgnore]
     private static JsonSerializerOptions _serializerOptions = new JsonSerializerOptions
@@ -293,7 +294,7 @@ public partial class IotValue
         {
             for (int i = 0; i < Timestamps.Length; i++)
             {
-                if (Timestamps[i] != null) return Timestamps[i]??DateTime.MinValue;
+                if (Timestamps[i] != null) return Timestamps[i]?.ToUniversalTime()??DateTime.MinValue;
             }
             return DateTime.MinValue;
         }

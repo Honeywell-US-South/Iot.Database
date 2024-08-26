@@ -20,16 +20,21 @@ namespace Example.IotValue
             var point = new IotPoint();
             point.Name = "Hello";
             point.TimeSeries = true;
-            point.SetValue15Default(15);
+            point.SetValue15Default(0);
             var id = pointTbl.Insert(point);
-            while (!input.Equals("q", StringComparison.OrdinalIgnoreCase))
+            for (int i = 1; i < 10; i++) 
             {
-                
-                point.SetValue15Default(15);
-                pointTbl.Update(point);
-                var tsValue = pointTbl.GetTimeSeries(point, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow);
-                input = Console.ReadLine();
+                for (int j = 1; j <= 10; j++)
+                {
+                    point.SetValue15Default(j * i);
+                    pointTbl.Update(point);
+                    Thread.Sleep(1000);
+                }
+
             }
+            Thread.Sleep(10000);
+            var tsValue = pointTbl.GetTimeSeries(point, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow);
+            input = Console.ReadLine();
         }
     }
 }

@@ -6,6 +6,7 @@ using Iot.Database.TimeSeries;
 using System.Collections.Concurrent;
 using System.Data;
 using System.Linq.Expressions;
+using System.Reflection;
 
 namespace Iot.Database.Table;
 
@@ -26,7 +27,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
     private ConcurrentDictionary<string, IBlockCollection> _blocks = new();
     private ConcurrentDictionary<string, TsCollection> _ts = new();
 
-    private readonly ConcurrentQueue<T> _attributeQueue = new ConcurrentQueue<T>();
+    private readonly ConcurrentQueue<IotValue> _iotValueQueue = new ConcurrentQueue<IotValue>();
     private readonly CancellationTokenSource _cts = new CancellationTokenSource();
 
     private readonly ConcurrentQueue<(T Entity, TaskCompletionSource<BsonValue> Tcs)> _insertAsyncQueue = new ConcurrentQueue<(T, TaskCompletionSource<BsonValue>)>();
@@ -80,7 +81,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
 
         _collection = Database.GetCollection<T>(_collectionName);
 
-        Task.Run(() => ProcessAttributeQueue(_cts.Token));
+        Task.Run(() => ProcessIotValueQueue(_cts.Token));
 
     }
 
@@ -211,16 +212,13 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
         return _blocks[iotValueGuid];
     }
 
-    private void WriteToBlocks(T entity)
+    private void WriteToBlocks(IotValue entity)
     {
-        if (entity is IotValue val)
+
+        if (entity.IsBlockChain)
         {
-            if (val.IsBlockChain && val.Value != null)
-            {
-                Blocks(val.Name)?.Insert(new BsonValue(val.Value));
-            }
+            Blocks(entity.Name)?.Insert(new BsonValue(entity));
         }
-       
 
     }
 
@@ -789,7 +787,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
 
         if (entity is IotValue iotValue)
         {
-            result = TimeSeries(iotValue.Guid)?.Get(start, end);
+            result = TimeSeriesDb(iotValue.Guid)?.Get(start, end);
         }
 
         return result;
@@ -801,7 +799,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
 
         if (entity is IotValue iotValue)
         {
-            result = TimeSeries(iotValue.Guid)?.Get(start, end, interval);
+            result = TimeSeriesDb(iotValue.Guid)?.Get(start, end, interval);
         }
 
         return result;
@@ -873,16 +871,24 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
     {
         CheckConstraints(entity);
 
-
         lock (SyncRoot)
         {
+            if (_collection.AutoId == BsonAutoId.Guid)
+            {
+                var id = System.Guid.NewGuid();
 
-            var id = _collection.Insert(entity);
-            if (id.IsNull) return id;
-
-            _attributeQueue.Enqueue(entity);
-
-            return id;
+                TableInfo.Id?.PropertyInfo.SetValue(entity, id, null);
+                _collection.Insert(id, entity);
+                AddToQueue(entity);
+                return id;
+            }
+            else
+            {
+                var id = _collection.Insert(entity);
+                if (id.IsNull) return id;
+                AddToQueue(entity);
+                return id;
+            }
         }
 
     }
@@ -897,9 +903,8 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
 
         lock (SyncRoot)
         {
-
             _collection.Insert(id, entity);
-            _attributeQueue.Enqueue(entity);
+            AddToQueue(entity);
         }
 
     }
@@ -919,7 +924,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
             int count = _collection.Insert(entities);
             foreach (var entity in entities)
             {
-                _attributeQueue.Enqueue(entity);
+                AddToQueue(entity);
             }
             return count;
         }
@@ -942,7 +947,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
             int count = _collection.InsertBulk(entities, batchSize);
             foreach (var entity in entities)
             {
-                _attributeQueue.Enqueue(entity);
+                AddToQueue(entity);
             }
             return count;
         }
@@ -1038,7 +1043,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
 
     #region TimeSeries
 
-    private ITsCollection? TimeSeries(string iotValueGuid)
+    private ITsCollection? TimeSeriesDb(string iotValueGuid)
     {
         lock (SyncRoot)
         {
@@ -1053,16 +1058,12 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
         return _ts[iotValueGuid];
     }
 
-    private void WriteToTimeSeries(T entity)
+    private void WriteToTimeSeries(IotValue entity)
     {
-        if (entity is IotValue iotValue)
+        if (entity.IsTimeSeries)
         {
-            if (iotValue.IsTimeSeries)
-            {
-                TimeSeries(iotValue.Guid)?.Insert(iotValue);
-            }
+            TimeSeriesDb(entity.Guid)?.Insert(entity);
         }
-       
     }
 
 
@@ -1078,8 +1079,10 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
     {
         lock (SyncRoot)
         {
-            WriteToBlocks(entity);
-            return _collection.Upsert(entity);
+            
+            var result = _collection.Upsert(entity);
+            AddToQueue(entity);
+            return result;
         }
 
     }
@@ -1091,11 +1094,13 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
 
         lock (SyncRoot)
         {
+            
+            var result = _collection.Upsert(entities);
             foreach (var entity in entities)
             {
-                WriteToBlocks(entity);
+                AddToQueue(entity);
             }
-            return _collection.Upsert(entities);
+            return result;
         }
 
     }
@@ -1109,8 +1114,10 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
 
         lock (SyncRoot)
         {
-            WriteToBlocks(entity);
-            return _collection.Upsert(id, entity);
+
+            var result = _collection.Upsert(id, entity);
+            AddToQueue(entity);
+            return result;
         }
 
     }
@@ -1121,7 +1128,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
     /// <param name="entity"></param>
     public void UpdateQueue(T entity)
     {
-         
+        AddToQueue(entity);
         _updateEntityQueue.Enqueue(entity);
 
     }
@@ -1133,7 +1140,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
     {
         lock (SyncRoot)
         {
-            _attributeQueue.Enqueue(entity);
+            AddToQueue(entity);
             return _collection.Update(entity);
         }
 
@@ -1146,7 +1153,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
     {
         lock (SyncRoot)
         {
-            _attributeQueue.Enqueue(entity);
+            AddToQueue(entity);
             return _collection.Update(id, entity);
         }
 
@@ -1161,7 +1168,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
         {
             foreach (var entity in entities)
             {
-                _attributeQueue.Enqueue(entity);
+                AddToQueue(entity);
             }
             return _collection.Update(entities);
         }
@@ -1278,11 +1285,19 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
 
     #region Queue
     
-    private void ProcessAttributeQueue(CancellationToken token)
+    private void AddToQueue(T entity)
+    {
+        if (entity is IotValue iotValue)
+        {
+            _iotValueQueue.Enqueue(iotValue.Copy());
+        }
+    }
+
+    private void ProcessIotValueQueue(CancellationToken token)
     {
         while (!token.IsCancellationRequested)
         {
-            if (_attributeQueue.TryDequeue(out var entity))
+            if (_iotValueQueue.TryDequeue(out var entity))
             {
                 WriteToBlocks(entity);
                 WriteToTimeSeries(entity);
