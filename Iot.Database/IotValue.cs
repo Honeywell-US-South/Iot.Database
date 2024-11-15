@@ -1057,6 +1057,13 @@ public partial class IotValue
         };
     }
 
-#endregion
+    #endregion
+
+    #region Functions
+    public bool IsPasswordMatches(string password)
+    {
+        return IsPasswordValue && (ToPasswordHash(password)?.Equals(this.Value)??false);
+    }
+    #endregion
 
 }
