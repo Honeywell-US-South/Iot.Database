@@ -3,7 +3,7 @@ using System.Timers;
 
 namespace Iot.Database.Queries
 {
-    public sealed partial class QueryExecutionService
+    public sealed class QueryExecutionService
     {
         private static readonly Lazy<QueryExecutionService> _instance = new(() => new QueryExecutionService());
         private readonly ConcurrentDictionary<string, QueryConfiguration> _queries = new();
@@ -18,6 +18,13 @@ namespace Iot.Database.Queries
 
         public static QueryExecutionService Instance => _instance.Value;
 
+        public void AddQuery(string key, QueryConfiguration config)
+        {
+            if (!_queries.TryAdd(key, config))
+            {
+                throw new InvalidOperationException($"A query with the key '{key}' already exists.");
+            }
+        }
         public void AddQuery(string key,
                              string query,
                              Func<string, object> executionFunction,
@@ -25,7 +32,7 @@ namespace Iot.Database.Queries
                              Action<QueryFailureEventArgs>? onFailure = null,
                              int intervalMilliseconds = 0)
         {
-            if (!_queries.TryAdd(key, new QueryConfiguration
+            var config = new QueryConfiguration
             {
                 Query = query,
                 ExecutionFunction = executionFunction,
@@ -33,10 +40,8 @@ namespace Iot.Database.Queries
                 LastExecuted = DateTime.MinValue,
                 OnSuccess = onSuccess,
                 OnFailure = onFailure
-            }))
-            {
-                throw new InvalidOperationException($"A query with the key '{key}' already exists.");
-            }
+            };
+            AddQuery(key, config);
         }
 
         public bool IsKeyExist(string key) { return _queries.ContainsKey(key); }
@@ -52,13 +57,17 @@ namespace Iot.Database.Queries
 
         public void RemoveQuery(string key)
         {
-            if (!_queries.TryRemove(key, out _))
+            if (_queries.TryRemove(key, out var queryConfig))
+            {
+                queryConfig.Dispose(); // Automatically clears delegates
+            }
+            else
             {
                 throw new KeyNotFoundException($"No query found with the key '{key}'.");
             }
         }
 
-        public object ExecuteQuery(string key)
+        public object ExecuteQuery(string key, bool suppressOnSuccessEvent = false)
         {
             if (_queries.TryGetValue(key, out var queryConfig))
             {
@@ -73,9 +82,11 @@ namespace Iot.Database.Queries
                     queryConfig.LastResult = result;
                     queryConfig.LastExecuted = DateTime.Now;
 
-                    // Notify only the specific subscriber
-                    queryConfig.OnSuccess?.Invoke(new QueryResultEventArgs(key, result, queryConfig.LastExecuted));
-
+                    if (!suppressOnSuccessEvent)
+                    {
+                        // Notify only the specific subscriber
+                        queryConfig.OnSuccess?.Invoke(new QueryResultEventArgs(key, result, queryConfig.LastExecuted));
+                    }
                     return result;
                 }
                 catch (Exception ex)

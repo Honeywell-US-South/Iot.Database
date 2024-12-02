@@ -1,16 +1,38 @@
-﻿namespace Iot.Database.Queries
+﻿using System.Text.Json.Serialization;
+using System.Xml.Serialization;
+
+namespace Iot.Database.Queries
 {
-    public sealed partial class QueryExecutionService
+
+    public class QueryConfiguration : IDisposable
     {
-        public class QueryConfiguration
+        public string Query { get; set; } = string.Empty;
+        [JsonIgnore]
+        [BsonIgnore]
+        [XmlIgnore]
+        public Func<string, object>? ExecutionFunction { get; set; }
+        public int IntervalMilliseconds { get; set; }
+        public DateTime LastExecuted { get; set; }
+        [JsonIgnore]
+        [BsonIgnore]
+        [XmlIgnore]
+        public object? LastResult { get; set; }
+        [JsonIgnore]
+        [BsonIgnore]
+        [XmlIgnore]
+        public Action<QueryResultEventArgs>? OnSuccess { get; set; }
+        [JsonIgnore]
+        [BsonIgnore]
+        [XmlIgnore]
+        public Action<QueryFailureEventArgs>? OnFailure { get; set; }
+
+        // Dispose pattern to automatically clean up resources
+        public void Dispose()
         {
-            public string Query { get; set; }
-            public Func<string, object> ExecutionFunction { get; set; }
-            public int IntervalMilliseconds { get; set; }
-            public DateTime LastExecuted { get; set; }
-            public object LastResult { get; set; }
-            public Action<QueryResultEventArgs>? OnSuccess { get; set; }
-            public Action<QueryFailureEventArgs>? OnFailure { get; set; }
+            ExecutionFunction = null;
+            OnSuccess = null;
+            OnFailure = null;
         }
     }
 }
+

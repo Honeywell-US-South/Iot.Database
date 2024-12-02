@@ -1,5 +1,6 @@
 ﻿using Iot.Database.Helper;
 using Iot.Database.IotValueUnits;
+using Iot.Database.Queries;
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
@@ -11,7 +12,7 @@ using System.Xml.Serialization;
 namespace Iot.Database;
 
 [Serializable]
-public partial class IotValue
+public partial class IotValue : IDisposable
 {
     public string Guid { get; set; } = System.Guid.NewGuid().ToString();
     public string Name { get; set; }
@@ -102,6 +103,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     private static JsonSerializerOptions _serializerOptions = new JsonSerializerOptions
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -140,6 +142,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public System.Type? DataType
     {
         get
@@ -164,6 +167,7 @@ public partial class IotValue
     #region Flags
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsAllowManualOperator
     {
         get { return AllowManualOperator;  }
@@ -172,6 +176,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool AllowManualOperator
     {
         get => Flags.IsEnabled(IotValueFlags.AllowManualOperator);
@@ -180,6 +185,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsTimeSeries
     {
         get { return TimeSeries; }
@@ -188,6 +194,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool TimeSeries
     {
         get => Flags.IsEnabled(IotValueFlags.TimeSeries);
@@ -196,6 +203,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsBlockChain
     {
         get { return BlockChain; }
@@ -204,6 +212,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool BlockChain
     {
         get => Flags.IsEnabled(IotValueFlags.BlockChain);
@@ -212,6 +221,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsPasswordValue
     {
         get { return PasswordValue; }
@@ -220,6 +230,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool PasswordValue
     {
         get => Flags.IsEnabled(IotValueFlags.PasswordValue);
@@ -228,6 +239,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsLogChange
     {
         get { return LogChange; }
@@ -236,6 +248,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool LogChange
     {
         get => Flags.IsEnabled(IotValueFlags.LogChange);
@@ -244,6 +257,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsValueInterpolated
     {
         get { return ValueInterpolated; }
@@ -252,6 +266,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool ValueInterpolated
     {
         get => Flags.IsEnabled(IotValueFlags.ValueInterpolated);
@@ -260,6 +275,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsPriority9Only
     {
         get { return Priority9Only; }
@@ -268,6 +284,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool Priority9Only
     {
         get => Flags.IsEnabled(IotValueFlags.Priority9Only);
@@ -285,6 +302,22 @@ public partial class IotValue
     {
         get
         {
+            if (_queryConfig != null && _queryIntervalMs == 0)
+            {
+                try
+                {
+                    string? key = GetQueryKey();
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        if (QueryExecutionService.Instance.IsKeyExist(key))
+                        {
+                            var result = QueryExecutionService.Instance.ExecuteQuery(key, true);
+                            SetValue14QueryExecutionResult(result);
+                        }
+                    }
+                }
+                catch { }
+            }
             for (int i = 0; i < Values.Length-1; i++)
             {
                 if (Values[i] != null) return Values[i];
@@ -324,14 +357,6 @@ public partial class IotValue
             }
             return DateTime.MinValue;
         }
-    }
-
-    [JsonIgnore]
-    [BsonIgnore]
-    [XmlIgnore]
-    public (string? Value, DateTime? Timestamp) Value17
-    {
-        get { return (Values[16], Timestamps[16]); }
     }
 
     #endregion
@@ -569,10 +594,10 @@ public partial class IotValue
     /// Priority 11: Available
     /// Priority 12: Available
     /// Priority 13: Available
-    /// Priority 14: External Value - Result of ExternalValueCallBack function.
+    /// Priority 14: QueryResult - Result of QueryExecutionService function.
     /// Priority 15: Default Value Set
     /// Priority 16: Default or Fallback Value(Lowest priority)
-    /// Priority 17: External value parameter for ExternalValueCallBack. Result will be stored in Priority 14.
+    /// Priority 17: QueryConfiguration. Result will be stored in Priority 14.
     /// </summary>
     /// <param name="priority">int</param>
     /// <param name="value">object</param>
@@ -601,10 +626,10 @@ public partial class IotValue
     /// Priority 11: Available
     /// Priority 12: Available
     /// Priority 13: Available
-    /// Priority 14: External Value - Result of ExternalValueCallBack function.
+    /// Priority 14: QueryResult - Result of QueryExecutionService function.
     /// Priority 15: Default Value Set
     /// Priority 16: Default or Fallback Value(Lowest priority)
-    /// Priority 17: External value parameter for ExternalValueCallBack. Result will be stored in Priority 14.
+    /// Priority 17: QueryConfiguration. Result will be stored in Priority 14.
     /// </summary>
     /// <param name="priority">int</param>
     /// <param name="value">string</param>
@@ -631,10 +656,10 @@ public partial class IotValue
     /// Priority 11: Available
     /// Priority 12: Available
     /// Priority 13: Available
-    /// Priority 14: External Value - Result of ExternalValueCallBack function.
+    /// Priority 14: QueryResult - Result of QueryExecutionService function.
     /// Priority 15: Default Value Set
     /// Priority 16: Default or Fallback Value(Lowest priority)
-    /// Priority 17: External value parameter for ExternalValueCallBack. Result will be stored in Priority 14.
+    /// Priority 17: QueryConfiguration. Result will be stored in Priority 14.
     /// </summary>
     /// <param name="priority">int</param>
     /// <param name="value">class T</param>
@@ -661,10 +686,10 @@ public partial class IotValue
     /// Priority 11: Available
     /// Priority 12: Available
     /// Priority 13: Available
-    /// Priority 14: External Value - Result of ExternalValueCallBack function.
+    /// Priority 14: QueryResult - Result of QueryExecutionService function.
     /// Priority 15: Default Value Set
     /// Priority 16: Default or Fallback Value(Lowest priority)
-    /// Priority 17: External value parameter for ExternalValueCallBack. Result will be stored in Priority 14.
+    /// Priority 17: QueryConfiguration. Result will be stored in Priority 14.
     /// </summary>
     /// <param name="priority">int</param>
     /// <param name="password">raw password string</param>
@@ -782,11 +807,11 @@ public partial class IotValue
 
 
     /// <summary>
-    /// Priority 14: External Value - Result of ExternalValueCallBack function.
+    /// Priority 14: Query Execution Result
     /// </summary>
     /// <param name="value"></param>
     /// <returns>true/false</returns>
-    private bool SetValue14ExternalValueCallBack(object? value) => SetValue(14, value);
+    private bool SetValue14QueryExecutionResult(object? value) => SetValue(14, value);
 
 
     /// <summary>
@@ -804,12 +829,9 @@ public partial class IotValue
     /// <returns>true/false</returns>
     public bool SetValue16DefaultFallback(object? value) => SetValue(16, value);
 
-    /// <summary>
-    /// Priority 17: Code (No returning value priority)
-    /// </summary>
-    /// <param name="value"></param>
-    /// <returns>true/false</returns>
-    public bool SetValue17ExternalValueParameter(object? value) => SetValue(16, value);
+
+    //See query for priority 17
+
     #endregion
 
     #region Get
@@ -1049,6 +1071,8 @@ public partial class IotValue
 
     }
 
+
+
     #endregion
 
     #region Helper
@@ -1143,5 +1167,76 @@ public partial class IotValue
     [BsonIgnore]
     [XmlIgnore]
     public List<float>? Embedding { get; set; }
+    #endregion
+
+    #region Query
+
+    private QueryConfiguration? _queryConfig;
+    private int _queryIntervalMs = 0;
+
+    private string? GetQueryKey()
+    {
+        if (string.IsNullOrEmpty(Guid)) return null;
+        return $"IotValue-{Guid}";
+    } 
+    /// <summary>
+    /// interval = 0 means manual execution only.
+    /// </summary>
+    /// <param name="executionFunction"></param>
+    /// <param name="intervalMilliseconds"></param>
+    private void InitQuery(Func<string, object> executionFunction,
+                             int intervalMilliseconds = 0)
+    {
+        _queryIntervalMs = intervalMilliseconds;
+        GetQueryConfiguration();
+        if (_queryConfig == null) return;
+        string? key = GetQueryKey();
+        if (string.IsNullOrEmpty(key)) return;
+        if (QueryExecutionService.Instance.IsKeyExist(key)) QueryExecutionService.Instance.RemoveQuery(key);
+        _queryConfig.ExecutionFunction = executionFunction;
+        _queryConfig.IntervalMilliseconds = _queryIntervalMs;
+        _queryConfig.OnSuccess += OnQueryExecute;
+        _queryConfig.OnFailure += OnQueryFail;
+       
+        QueryExecutionService.Instance.AddQuery(key, _queryConfig);
+    }
+
+    /// <summary>
+    /// Priority 17: Query Configuration
+    /// </summary>
+    /// <param name="value"></param>
+    /// <returns>true/false</returns>
+    public bool SetValue17QueryConfigurationParameter(QueryConfiguration? value) 
+    {
+        _queryConfig = value;
+        return SetValue(17, value);
+    }
+    
+    public QueryConfiguration? GetQueryConfiguration()
+    {
+        if (_queryConfig == null) 
+        {
+            if (string.IsNullOrEmpty(Values[16])) return null;
+            _queryConfig = System.Text.Json.JsonSerializer.Deserialize<QueryConfiguration>(Values[16]);
+        }
+        return _queryConfig;
+    }
+
+
+    private void OnQueryExecute(QueryResultEventArgs? e)
+    {
+        SetValue14QueryExecutionResult(e.Result);
+    }
+
+    private void OnQueryFail(QueryFailureEventArgs? e)
+    {
+
+    }
+
+    public void Dispose()
+    {
+        string? key = GetQueryKey();
+        if (!string.IsNullOrEmpty(key) && QueryExecutionService.Instance.IsKeyExist(key)) QueryExecutionService.Instance.RemoveQuery(key);
+    }
     #endregion
 }
