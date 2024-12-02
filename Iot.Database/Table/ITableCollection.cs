@@ -72,7 +72,7 @@ namespace Iot.Database
         
         K Min<K>(Expression<Func<T, K>> keySelector);
         //ILiteQueryable<T> Query();
-        QueryBuilder<T> Query();
+        QueryBuilder<T>? Query();
 
         bool Update(BsonValue id, T entity);
         int Update(IEnumerable<T> entities);

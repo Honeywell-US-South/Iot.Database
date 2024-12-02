@@ -1,26 +1,30 @@
-﻿namespace Iot.Database;
+﻿using Iot.Database.IotValueUnits;
+
+namespace Iot.Database;
 
 public partial struct IotUnit : IEquatable<IotUnit>
 {
     public string Name { get; set; }
     public string Symbol { get; set; } 
     public string Group { get; set; }
-    
+    public string AsStringFormat { get; set; } = string.Empty;
+
     public IotUnit() {
     
         this = Units.no_unit;
     }
-    public IotUnit(string group, string name, string symbol)
+    public IotUnit(string group, string name, string symbol, string asStringFormat = "")
     {
-        Group = group;
-        Name = name;
-        Symbol = symbol;
+        Group = group ?? throw new ArgumentNullException(nameof(group));
+        Name = name ?? throw new ArgumentNullException(nameof(name));
+        Symbol = symbol ?? throw new ArgumentNullException(nameof(symbol));
+        AsStringFormat = asStringFormat ?? string.Empty;
     }
 
     // Implementing IEquatable<IotUnit>
     public bool Equals(IotUnit other)
     {
-        return Name == other.Name && Symbol == other.Symbol && Group == other.Group;
+        return Name == other.Name && Symbol == other.Symbol && Group == other.Group && AsStringFormat == other.AsStringFormat;
     }
 
     // Overriding Equals method
@@ -36,10 +40,10 @@ public partial struct IotUnit : IEquatable<IotUnit>
     // Overriding GetHashCode
     public override int GetHashCode()
     {
-        return HashCode.Combine(Name, Symbol, Group);
+        return HashCode.Combine(Name, Symbol, Group, AsStringFormat);
     }
 
-    // Implementing equality operator ==
+    // Implementing equality operator
     public static bool operator ==(IotUnit left, IotUnit right)
     {
         return left.Equals(right);

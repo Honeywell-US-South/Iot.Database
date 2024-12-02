@@ -6,7 +6,6 @@ using Iot.Database.TimeSeries;
 using System.Collections.Concurrent;
 using System.Data;
 using System.Linq.Expressions;
-using System.Reflection;
 
 namespace Iot.Database.Table;
 
@@ -23,7 +22,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
     private ILiteCollection<T> _collection;
     private bool _processingQueue = false;
     private ConcurrentQueue<T> _updateEntityQueue = new ConcurrentQueue<T>();
-    private IotDatabase _iotDb;
+    private IotDatabase? _iotDb;
     private ConcurrentDictionary<string, IBlockCollection> _blocks = new();
     private ConcurrentDictionary<string, TsCollection> _ts = new();
 
@@ -36,7 +35,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
 
     #region Constructors
     /// <summary>
-    /// Create new table
+    /// Create new table linked with other tables in iotDb
     /// </summary>
     /// <param name="iotDb"></param>
     /// <param name="dbPath"></param>
@@ -60,32 +59,61 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
                 }
             }
         }
-        iotDb._tableInfos[TableInfo.Name] = TableInfo;
-        foreach (var table in iotDb._tableInfos)
+        if (_iotDb != null)
         {
-            foreach (var fk in table.Value.ForeignKeys)
+            _iotDb._tableInfos[TableInfo.Name] = TableInfo;
+            foreach (var table in _iotDb._tableInfos)
             {
-                if (fk.Name.EndsWith("Id"))
+                foreach (var fk in table.Value.ForeignKeys)
                 {
-                    var name = fk.Name.Substring(0, fk.Name.Length - "Id".Length);
-                    var tf = iotDb._tableInfos.FirstOrDefault(x => x.Key == name).Value;
-                    if (tf == null) continue;
-                    if (!tf.ChildTables.Any(x => x.Name == table.Key))
+                    if (fk.Name.EndsWith("Id"))
                     {
-                        tf.ChildTables.Add(table.Value);
-                    }
+                        var name = fk.Name.Substring(0, fk.Name.Length - "Id".Length);
+                        var tf = _iotDb._tableInfos.FirstOrDefault(x => x.Key == name).Value;
+                        if (tf == null) continue;
+                        if (!tf.ChildTables.Any(x => x.Name == table.Key))
+                        {
+                            tf.ChildTables.Add(table.Value);
+                        }
 
+                    }
                 }
             }
         }
-
         _collection = Database.GetCollection<T>(_collectionName);
 
         Task.Run(() => ProcessIotValueQueue(_cts.Token));
 
     }
 
+    /// <summary>
+    /// Create stand alone table
+    /// </summary>
+    /// <param name="name"></param>
+    /// <param name="path"></param>
+    /// <param name="password"></param>
+    /// <exception cref="InvalidConstraintException"></exception>
+    public TableCollection(string path, string name = "", string password = "") : base(path, string.IsNullOrEmpty(name)?typeof(T).Name:name, password)
+    {
+        PreCheck();
+        SetGlobalIgnore<T>();
+        TableInfo = new TableInfo(typeof(T));
+        foreach (var ft in TableInfo.ForeignTables)
+        {
+            if (ft.Name.EndsWith("Table"))
+            {
+                var fieldName = ft.Name.Substring(0, ft.Name.Length - "Table".Length);
+                var idName = $"{fieldName}Id";
+                if (!TableInfo.ForeignKeys.Any(x => x.Name == idName))
+                {
+                    throw new InvalidConstraintException($"Table doesn't have Foreign Key for referenced Foreign Table name {ft.Name}.");
+                }
+            }
+        }
+        _collection = Database.GetCollection<T>(_collectionName);
 
+        Task.Run(() => ProcessIotValueQueue(_cts.Token));
+    }
 
 
     private void PreCheck()
@@ -205,7 +233,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
                 var blockPath = Path.Combine(DbPath, DbName, "BlockChain");
 
                 Helper.MachineInfo.CreateDirectory(blockPath);
-                _blocks[iotValueGuid] = new BlockCollection(blockPath, $"{DbName}_{iotValueGuid}", _iotDb._password);
+                _blocks[iotValueGuid] = new BlockCollection(blockPath, $"{DbName}_{iotValueGuid}", _iotDb?._password??"");
                 _blocks[iotValueGuid].ExceptionOccurred += OnBlockExceptionOccurred;
             }
         }
@@ -243,7 +271,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
 
         lock (SyncRoot)
         {
-            if (_iotDb._tableInfos[typeof(T).Name].ChildTables.Count > 0)
+            if (_iotDb !=null && _iotDb._tableInfos[typeof(T).Name].ChildTables.Count > 0)
             {
                 //no child has multiple foreign keys. Now try to delete
                 foreach (var child in _iotDb._tableInfos[typeof(T).Name].ChildTables)
@@ -338,7 +366,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
         lock (SyncRoot)
         {
             var col = Collection;
-            if (_iotDb._tableInfos[typeof(T).Name].ChildTables.Count > 0)
+            if (_iotDb != null && _iotDb._tableInfos[typeof(T).Name].ChildTables.Count > 0)
             {
                 //no child has multiple foreign keys. Now try to delete
                 foreach (var child in _iotDb._tableInfos[typeof(T).Name].ChildTables)
@@ -818,34 +846,37 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
             propertyValues[fk.Name] = fk.PropertyInfo.GetValue(entity, null);
         }
 
-        // Check foreign keys constraints
-        foreach (var fk in TableInfo.ForeignKeys)
+        if (_iotDb != null)
         {
-            if (fk.Attribute is TableForeignKeyAttribute tfk)
+            // Check foreign keys constraints
+            foreach (var fk in TableInfo.ForeignKeys)
             {
-                if (tfk.Constraint == TableConstraint.Cascading || tfk.Constraint == TableConstraint.Restrictive)
+                if (fk.Attribute is TableForeignKeyAttribute tfk)
                 {
-                    var val = propertyValues[fk.Name];
-                    if (val == null) throw new NullReferenceException($"Foreign key {fk.Name} value is null");
+                    if (tfk.Constraint == TableConstraint.Cascading || tfk.Constraint == TableConstraint.Restrictive)
+                    {
+                        var val = propertyValues[fk.Name];
+                        if (val == null) throw new NullReferenceException($"Foreign key {fk.Name} value is null");
 
-                    BsonValue bv = new(val);
-                    if (bv.IsNumber && bv < 1) throw new ArgumentException($"Numeric foreign key {fk.Name} value {val} is invalid Id.");
+                        BsonValue bv = new(val);
+                        if (bv.IsNumber && bv < 1) throw new ArgumentException($"Numeric foreign key {fk.Name} value {val} is invalid Id.");
 
-                    var tableName = fk.Name.Substring(0, fk.Name.Length - 2);
-                    var table = _iotDb.GetTable(tableName);
-                    if (table == null) throw new FileNotFoundException($"Foreign key table {tableName} is not found.");
+                        var tableName = fk.Name.Substring(0, fk.Name.Length - 2);
+                        var table = _iotDb.GetTable(tableName);
+                        if (table == null) throw new FileNotFoundException($"Foreign key table {tableName} is not found.");
 
-                    var parentRecords = table.Find("Id", bv, Base.Comparison.Equals);
-                    if (parentRecords.Count < 1) throw new MissingMemberException($"Table {tableName} doesn't have record with foreign key Id.");
-                }
+                        var parentRecords = table.Find("Id", bv, Base.Comparison.Equals);
+                        if (parentRecords.Count < 1) throw new MissingMemberException($"Table {tableName} doesn't have record with foreign key Id.");
+                    }
 
-                if (tfk.RelationshipOneTo == RelationshipOneTo.One)
-                {
-                    var val = propertyValues[fk.Name];
-                    if (val == null) throw new NullReferenceException($"Foreign key {fk.Name} value is null");
+                    if (tfk.RelationshipOneTo == RelationshipOneTo.One)
+                    {
+                        var val = propertyValues[fk.Name];
+                        if (val == null) throw new NullReferenceException($"Foreign key {fk.Name} value is null");
 
-                    var items = Find(fk.Name, val?.ToString() ?? string.Empty, Comparison.Equals);
-                    if (items.Count > 0) throw new ConstraintException($"Relationship One to One Constraint: TRUE. One item existed.");
+                        var items = Find(fk.Name, val?.ToString() ?? string.Empty, Comparison.Equals);
+                        if (items.Count > 0) throw new ConstraintException($"Relationship One to One Constraint: TRUE. One item existed.");
+                    }
                 }
             }
         }
@@ -1021,8 +1052,10 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
     #region Q
     
 
-    public QueryBuilder<T> Query()
+    public QueryBuilder<T>? Query()
     {
+        if (_iotDb == null) return null;
+
         return new QueryBuilder<T>(_iotDb);
     }
 
@@ -1051,7 +1084,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
             {
                 var tsPath = Path.Combine(DbPath, DbName, "TimeSeries");
                 Helper.MachineInfo.CreateDirectory(tsPath);
-                _ts[iotValueGuid] = new TsCollection(tsPath, $"{DbName}_{iotValueGuid}", _iotDb._password);
+                _ts[iotValueGuid] = new TsCollection(tsPath, $"{DbName}_{iotValueGuid}", _iotDb?._password ?? "");
                 _ts[iotValueGuid].ExceptionOccurred += OnBlockExceptionOccurred;
             }
         }
