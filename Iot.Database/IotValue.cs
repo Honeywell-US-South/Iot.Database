@@ -577,6 +577,16 @@ public partial class IotValue : IDisposable
             return IsHash;
         }
     }
+
+    /// <summary>
+    /// Verify if plain text password matches with hashed password.
+    /// </summary>
+    /// <param name="password"></param>
+    /// <returns></returns>
+    public bool IsPasswordMatches(string password)
+    {
+        return Value == ToPasswordHash(password);
+    }
     #endregion
 
     #region Set
