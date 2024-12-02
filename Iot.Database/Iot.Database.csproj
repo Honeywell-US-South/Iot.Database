@@ -6,10 +6,18 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+<<<<<<< HEAD
   <Target Name="BeforeBuild">
     <!-- Remove obj folder -->
     <RemoveDir Directories="$(BaseIntermediateOutputPath)" />
     <!-- Remove bin folder -->
     <RemoveDir Directories="$(BaseOutputPath)" />
   </Target>
+=======
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML" Version="4.0.0" />
+  </ItemGroup>
+
+>>>>>>> 671ffc57c14a934fdb6df7c33e1681d82f1bb5c5
 </Project>

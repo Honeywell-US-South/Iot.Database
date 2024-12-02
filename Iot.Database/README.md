@@ -1,6 +1,6 @@
 ﻿
 # Iot.Database Library
-## Current Version: 0.0.9-beta
+## Current Version: 0.0.10-beta
 
 ## Overview
 

@@ -1,4 +1,6 @@
-﻿namespace Iot.Database
+﻿using Iot.Database.IotValueUnits;
+
+namespace Iot.Database
 {
     public partial struct IotUnit
     {

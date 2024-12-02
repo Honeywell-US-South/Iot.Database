@@ -19,7 +19,7 @@ internal class BaseValue
         const int maxMilliseconds = 20 * millisecondsPerDay; // Maximum milliseconds for 20 days
 
         // Calculate the total milliseconds since the start
-        long totalMilliseconds = (long)(timestamp - Start).TotalMilliseconds;
+        long totalMilliseconds = (long)(timestamp - Start.ToUniversalTime()).TotalMilliseconds;
 
         // Determine the group and the milliseconds within the current group
         int group = (int)(totalMilliseconds / maxMilliseconds) + 1;

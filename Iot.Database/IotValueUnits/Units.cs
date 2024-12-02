@@ -1,10 +1,9 @@
-﻿
-namespace Iot.Database;
+﻿namespace Iot.Database.IotValueUnits;
 
 
 public partial struct Units
 {
-    public static IotUnit no_unit => new IotUnit("None", "no_unit", "-");
+    public static IotUnit no_unit => new IotUnit("None", "no_unit", "");
 
     public struct All
     {

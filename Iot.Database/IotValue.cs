@@ -1,21 +1,24 @@
 ﻿using Iot.Database.Helper;
+using Iot.Database.IotValueUnits;
+using Iot.Database.Queries;
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Xml.Serialization;
 
 namespace Iot.Database;
 
 [Serializable]
-public partial class IotValue
+public partial class IotValue : IDisposable
 {
     public string Guid { get; set; } = System.Guid.NewGuid().ToString();
     public string Name { get; set; }
     public string Description { get; set; } = string.Empty;
-    public string?[] Values { get; set; } = new string?[16];
-    public DateTime?[] Timestamps { get; set; } = new DateTime?[16];
+    public string?[] Values { get; set; } = new string?[17];
+    public DateTime?[] Timestamps { get; set; } = new DateTime?[17];
     public IotUnit Unit { get; set; } = Units.no_unit;
     public string? StrictDataType { get; set; } = null;
     public IotValueFlags Flags { get; set; } = IotValueFlags.None;
@@ -78,8 +81,29 @@ public partial class IotValue
         }
     }
 
+    public virtual void CopyFrom<T>(T source) where T : IotValue
+    {
+        // Ensure that the runtime types are compatible
+        if (source == null || !this.GetType().IsAssignableFrom(source.GetType()))
+        {
+            throw new InvalidOperationException("Source object is not compatible with the target object.");
+        }
+
+        var properties = this.GetType().GetProperties();
+        foreach (var property in properties)
+        {
+            if (property.CanWrite)
+            {
+                var value = property.GetValue(source);
+                property.SetValue(this, value);
+            }
+        }
+    }
+
+
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     private static JsonSerializerOptions _serializerOptions = new JsonSerializerOptions
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -97,7 +121,7 @@ public partial class IotValue
 
     #endregion
 
-    
+    #region Raw Value and Type
     private bool SetRawValue(int index, string? value)
     {
         if (index < 0 && index >= Values.Length) return false;
@@ -118,6 +142,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public System.Type? DataType
     {
         get
@@ -137,10 +162,12 @@ public partial class IotValue
     {
         StrictDataType = type?.AssemblyQualifiedName;
     }
+    #endregion
 
     #region Flags
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsAllowManualOperator
     {
         get { return AllowManualOperator;  }
@@ -149,6 +176,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool AllowManualOperator
     {
         get => Flags.IsEnabled(IotValueFlags.AllowManualOperator);
@@ -157,6 +185,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsTimeSeries
     {
         get { return TimeSeries; }
@@ -165,6 +194,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool TimeSeries
     {
         get => Flags.IsEnabled(IotValueFlags.TimeSeries);
@@ -173,6 +203,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsBlockChain
     {
         get { return BlockChain; }
@@ -181,6 +212,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool BlockChain
     {
         get => Flags.IsEnabled(IotValueFlags.BlockChain);
@@ -189,6 +221,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsPasswordValue
     {
         get { return PasswordValue; }
@@ -197,6 +230,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool PasswordValue
     {
         get => Flags.IsEnabled(IotValueFlags.PasswordValue);
@@ -205,6 +239,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsLogChange
     {
         get { return LogChange; }
@@ -213,6 +248,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool LogChange
     {
         get => Flags.IsEnabled(IotValueFlags.LogChange);
@@ -221,6 +257,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsValueInterpolated
     {
         get { return ValueInterpolated; }
@@ -229,6 +266,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool ValueInterpolated
     {
         get => Flags.IsEnabled(IotValueFlags.ValueInterpolated);
@@ -237,6 +275,7 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool IsPriority9Only
     {
         get { return Priority9Only; }
@@ -245,22 +284,41 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool Priority9Only
     {
         get => Flags.IsEnabled(IotValueFlags.Priority9Only);
         set => Flags = value ? Flags.Enable(IotValueFlags.Priority9Only) : Flags.Disable(IotValueFlags.Priority9Only);
     }
 
-    
+
     #endregion
 
+    #region Value and Priority
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public string? Value
     {
         get
         {
-            for (int i = 0; i < Values.Length; i++)
+            if (_queryConfig != null && _queryIntervalMs == 0)
+            {
+                try
+                {
+                    string? key = GetQueryKey();
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        if (QueryExecutionService.Instance.IsKeyExist(key))
+                        {
+                            var result = QueryExecutionService.Instance.ExecuteQuery(key, true);
+                            SetValue14QueryExecutionResult(result);
+                        }
+                    }
+                }
+                catch { }
+            }
+            for (int i = 0; i < Values.Length-1; i++)
             {
                 if (Values[i] != null) return Values[i];
             }
@@ -272,11 +330,12 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public int Priority
     {
         get
         {
-            for (int i = 0; i < Values.Length; i++)
+            for (int i = 0; i < Values.Length - 1; i++)
             {
                 if (Values[i] != null) return i + 1;
             }
@@ -287,17 +346,20 @@ public partial class IotValue
 
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public DateTime Timestamp
     {
         get
         {
-            for (int i = 0; i < Timestamps.Length; i++)
+            for (int i = 0; i < Timestamps.Length-1; i++)
             {
-                if (Timestamps[i] != null) return Timestamps[i]??DateTime.MinValue;
+                if (Timestamps[i] != null) return Timestamps[i]?.ToUniversalTime()??DateTime.MinValue;
             }
             return DateTime.MinValue;
         }
     }
+
+    #endregion
 
     #region Check
 
@@ -515,6 +577,16 @@ public partial class IotValue
             return IsHash;
         }
     }
+
+    /// <summary>
+    /// Verify if plain text password matches with hashed password.
+    /// </summary>
+    /// <param name="password"></param>
+    /// <returns></returns>
+    public bool IsPasswordMatches(string password)
+    {
+        return Value == ToPasswordHash(password);
+    }
     #endregion
 
     #region Set
@@ -532,9 +604,10 @@ public partial class IotValue
     /// Priority 11: Available
     /// Priority 12: Available
     /// Priority 13: Available
-    /// Priority 14: Available
+    /// Priority 14: QueryResult - Result of QueryExecutionService function.
     /// Priority 15: Default Value Set
     /// Priority 16: Default or Fallback Value(Lowest priority)
+    /// Priority 17: QueryConfiguration. Result will be stored in Priority 14.
     /// </summary>
     /// <param name="priority">int</param>
     /// <param name="value">object</param>
@@ -563,9 +636,10 @@ public partial class IotValue
     /// Priority 11: Available
     /// Priority 12: Available
     /// Priority 13: Available
-    /// Priority 14: Available
+    /// Priority 14: QueryResult - Result of QueryExecutionService function.
     /// Priority 15: Default Value Set
     /// Priority 16: Default or Fallback Value(Lowest priority)
+    /// Priority 17: QueryConfiguration. Result will be stored in Priority 14.
     /// </summary>
     /// <param name="priority">int</param>
     /// <param name="value">string</param>
@@ -592,9 +666,10 @@ public partial class IotValue
     /// Priority 11: Available
     /// Priority 12: Available
     /// Priority 13: Available
-    /// Priority 14: Available
+    /// Priority 14: QueryResult - Result of QueryExecutionService function.
     /// Priority 15: Default Value Set
     /// Priority 16: Default or Fallback Value(Lowest priority)
+    /// Priority 17: QueryConfiguration. Result will be stored in Priority 14.
     /// </summary>
     /// <param name="priority">int</param>
     /// <param name="value">class T</param>
@@ -621,9 +696,10 @@ public partial class IotValue
     /// Priority 11: Available
     /// Priority 12: Available
     /// Priority 13: Available
-    /// Priority 14: Available
+    /// Priority 14: QueryResult - Result of QueryExecutionService function.
     /// Priority 15: Default Value Set
     /// Priority 16: Default or Fallback Value(Lowest priority)
+    /// Priority 17: QueryConfiguration. Result will be stored in Priority 14.
     /// </summary>
     /// <param name="priority">int</param>
     /// <param name="password">raw password string</param>
@@ -641,14 +717,14 @@ public partial class IotValue
     /// Priority 1: Manual Operator Override (Highest priority)
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue01ManualOperatorOverride(object? value) => SetValue(1, value);
 
     /// <summary>
     /// Priority 2: Critical Equipment Control
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue02Critica(object? value) => SetValue(2, value);
 
 
@@ -656,7 +732,7 @@ public partial class IotValue
     /// Priority 3: Life Safety
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue03LifeSafety(object? value) => SetValue(3, value);
 
 
@@ -664,7 +740,7 @@ public partial class IotValue
     /// Priority 4: Fire Safety
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue04FireSafety(object? value) => SetValue(4, value);
 
 
@@ -672,7 +748,7 @@ public partial class IotValue
     /// Priority 5: Emergency
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue05Emergency(object? value) => SetValue(5, value);
 
 
@@ -680,7 +756,7 @@ public partial class IotValue
     /// Priority 6: Safety
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue06Safety(object? value) => SetValue(6, value);
 
 
@@ -688,7 +764,7 @@ public partial class IotValue
     /// Priority 7: Free
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue07Free(object? value) => SetValue(7, value);
 
 
@@ -696,7 +772,7 @@ public partial class IotValue
     /// Priority 8: Manual Operator
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue08ManualOperator(object? value) => SetValue(8, value);
 
 
@@ -704,7 +780,7 @@ public partial class IotValue
     /// Priority 9: Control Strategy
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue09ControlStrategy(object? value) => SetValue(9, value);
 
 
@@ -712,7 +788,7 @@ public partial class IotValue
     /// Priority 10: Free
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue10Free(object? value) => SetValue(10, value);
 
 
@@ -720,7 +796,7 @@ public partial class IotValue
     /// Priority 11: Free
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue11Free(object? value) => SetValue(11, value);
 
 
@@ -728,7 +804,7 @@ public partial class IotValue
     /// Priority 12: Free
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue12Free(object? value) => SetValue(12, value);
 
 
@@ -736,23 +812,23 @@ public partial class IotValue
     /// Priority 13: Free
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue13Free(object? value) => SetValue(13, value);
 
 
     /// <summary>
-    /// Priority 14: Free
+    /// Priority 14: Query Execution Result
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
-    public bool SetValue14Free(object? value) => SetValue(14, value);
+    /// <returns>true/false</returns>
+    private bool SetValue14QueryExecutionResult(object? value) => SetValue(14, value);
 
 
     /// <summary>
     /// Priority 15: Default Value Set
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue15Default(object? value) => SetValue(15, value);
 
 
@@ -760,8 +836,11 @@ public partial class IotValue
     /// Priority 16: Default or Fallback Value (Lowest priority)
     /// </summary>
     /// <param name="value"></param>
-    /// <returns>true/fals</returns>
+    /// <returns>true/false</returns>
     public bool SetValue16DefaultFallback(object? value) => SetValue(16, value);
+
+
+    //See query for priority 17
 
     #endregion
 
@@ -772,6 +851,7 @@ public partial class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public int AsPriority
     {
         get
@@ -785,6 +865,7 @@ public partial class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public System.Type? AsType
     {
         get
@@ -817,6 +898,7 @@ public partial class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public bool? AsBoolean
     {
         get
@@ -834,6 +916,7 @@ public partial class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public DateTime? AsDateTime
     {
         get
@@ -850,6 +933,7 @@ public partial class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public int? AsInteger
     {
         get
@@ -867,6 +951,7 @@ public partial class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public double? AsDouble
     {
         get
@@ -884,6 +969,7 @@ public partial class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public long? AsLong
     {
         get
@@ -901,6 +987,7 @@ public partial class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public Guid? AsGuid
     {
         get
@@ -918,6 +1005,7 @@ public partial class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public float? AsFloat => float.TryParse(Value, out float result) ? result : (float?)null;
 
     /// <summary>
@@ -925,6 +1013,7 @@ public partial class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public decimal? AsDecimal => decimal.TryParse(Value, out decimal result) ? result : (decimal?)null;
 
     /// <summary>
@@ -932,20 +1021,42 @@ public partial class IotValue
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public char? AsChar => char.TryParse(Value, out char result) ? result : (char?)null;
     /// <summary>
     /// Get value as string. Return null if Value cannot parse as string.
     /// </summary>
     [JsonIgnore]
     [BsonIgnore]
+    [XmlIgnore]
     public string? AsString
     {
         get
         {
-            return Value;
+            // If Value is null, return null
+            if (Value == null)
+                return null;
+
+            // If Unit.StringFormat is null or empty, return the Value as is
+            if (string.IsNullOrEmpty(Unit.AsStringFormat))
+                return Value;
+
+            // Apply custom formatting logic based on Unit.StringFormat
+            return string.Format(Unit.AsStringFormat, Value);
         }
     }
 
+    /// <summary>
+    /// ToString provide the AsString format plus the symbol
+    /// </summary>
+    /// <returns></returns>
+    public override string ToString()
+    {
+        var symbol = Unit.Symbol;
+        if (Unit == Units.no_unit) symbol = "";
+        var val = $"{AsString} {symbol}";
+        return val.Trim();
+    }
 
     /// <summary>
     /// Get value as a deserialized object. Return null if Value cannot deserialize.
@@ -969,6 +1080,8 @@ public partial class IotValue
         return null;
 
     }
+
+
 
     #endregion
 
@@ -1058,6 +1171,7 @@ public partial class IotValue
     }
 
     #endregion
+<<<<<<< HEAD
 
     #region Functions
     public bool IsPasswordMatches(string password)
@@ -1065,5 +1179,84 @@ public partial class IotValue
         return IsPasswordValue && (ToPasswordHash(password)?.Equals(this.Value)??false);
     }
     #endregion
+=======
+>>>>>>> 671ffc57c14a934fdb6df7c33e1681d82f1bb5c5
 
+    #region Vector
+    [JsonIgnore]
+    [BsonIgnore]
+    [XmlIgnore]
+    public List<float>? Embedding { get; set; }
+    #endregion
+
+    #region Query
+
+    private QueryConfiguration? _queryConfig;
+    private int _queryIntervalMs = 0;
+
+    private string? GetQueryKey()
+    {
+        if (string.IsNullOrEmpty(Guid)) return null;
+        return $"IotValue-{Guid}";
+    } 
+    /// <summary>
+    /// interval = 0 means manual execution only.
+    /// </summary>
+    /// <param name="executionFunction"></param>
+    /// <param name="intervalMilliseconds"></param>
+    private void InitQuery(Func<string, object> executionFunction,
+                             int intervalMilliseconds = 0)
+    {
+        _queryIntervalMs = intervalMilliseconds;
+        GetQueryConfiguration();
+        if (_queryConfig == null) return;
+        string? key = GetQueryKey();
+        if (string.IsNullOrEmpty(key)) return;
+        if (QueryExecutionService.Instance.IsKeyExist(key)) QueryExecutionService.Instance.RemoveQuery(key);
+        _queryConfig.ExecutionFunction = executionFunction;
+        _queryConfig.IntervalMilliseconds = _queryIntervalMs;
+        _queryConfig.OnSuccess += OnQueryExecute;
+        _queryConfig.OnFailure += OnQueryFail;
+       
+        QueryExecutionService.Instance.AddQuery(key, _queryConfig);
+    }
+
+    /// <summary>
+    /// Priority 17: Query Configuration
+    /// </summary>
+    /// <param name="value"></param>
+    /// <returns>true/false</returns>
+    public bool SetValue17QueryConfigurationParameter(QueryConfiguration? value) 
+    {
+        _queryConfig = value;
+        return SetValue(17, value);
+    }
+    
+    public QueryConfiguration? GetQueryConfiguration()
+    {
+        if (_queryConfig == null) 
+        {
+            if (string.IsNullOrEmpty(Values[16])) return null;
+            _queryConfig = System.Text.Json.JsonSerializer.Deserialize<QueryConfiguration>(Values[16]);
+        }
+        return _queryConfig;
+    }
+
+
+    private void OnQueryExecute(QueryResultEventArgs? e)
+    {
+        SetValue14QueryExecutionResult(e.Result);
+    }
+
+    private void OnQueryFail(QueryFailureEventArgs? e)
+    {
+
+    }
+
+    public void Dispose()
+    {
+        string? key = GetQueryKey();
+        if (!string.IsNullOrEmpty(key) && QueryExecutionService.Instance.IsKeyExist(key)) QueryExecutionService.Instance.RemoveQuery(key);
+    }
+    #endregion
 }

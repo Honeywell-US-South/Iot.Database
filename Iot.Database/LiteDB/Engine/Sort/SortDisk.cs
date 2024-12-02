@@ -27,7 +27,7 @@ namespace Iot.Database.Engine
 
         public SortDisk(IStreamFactory factory, int containerSize, EnginePragmas pragmas)
         {
-            ENSURE(containerSize % PAGE_SIZE == 0, "size must be PAGE_SIZE multiple");
+            ENSURE(containerSize % PAGE_SIZE == 0, "MudBlazor.Size must be PAGE_SIZE multiple");
 
             _factory = factory;
             _containerSize = containerSize;
