@@ -1171,16 +1171,6 @@ public partial class IotValue : IDisposable
     }
 
     #endregion
-<<<<<<< HEAD
-
-    #region Functions
-    public bool IsPasswordMatches(string password)
-    {
-        return IsPasswordValue && (ToPasswordHash(password)?.Equals(this.Value)??false);
-    }
-    #endregion
-=======
->>>>>>> 671ffc57c14a934fdb6df7c33e1681d82f1bb5c5
 
     #region Vector
     [JsonIgnore]
