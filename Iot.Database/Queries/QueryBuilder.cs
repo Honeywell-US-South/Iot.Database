@@ -20,14 +20,18 @@ namespace Iot.Database.Queries
             return compiledQuery(_data.AsQueryable()).ToList();
         }
 
-        private Expression<Func<IQueryable<T>, IQueryable<T>>> DeserializeQuery(string serializedQuery)
+       private Expression<Func<IQueryable<T>, IQueryable<T>>> DeserializeQuery(string serializedQuery)
         {
-            var remoteExpression = System.Text.Json.JsonSerializer.Deserialize<Remote.Linq.Expressions.LambdaExpression>(serializedQuery);
+            var options = new JsonSerializerOptions
+            {
+                Converters = { new ExpressionConverter() }
+            };
+            var remoteExpression = JsonSerializer.Deserialize<Remote.Linq.Expressions.LambdaExpression>(serializedQuery, options);
             var outerExpression = remoteExpression.ToLinqExpression<Expression<Func<Expression<Func<IQueryable<T>, IQueryable<T>>>>>>();
-
+        
             // Extract the inner expression
             var innerExpression = (Expression<Func<IQueryable<T>, IQueryable<T>>>)outerExpression.Body;
-
+        
             return innerExpression;
         }
 
