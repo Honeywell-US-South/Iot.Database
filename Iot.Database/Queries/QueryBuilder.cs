@@ -22,11 +22,11 @@ namespace Iot.Database.Queries
 
        private Expression<Func<IQueryable<T>, IQueryable<T>>> DeserializeQuery(string serializedQuery)
         {
-            var options = new JsonSerializerOptions
+            var options = new System.Text.Json.JsonSerializerOptions
             {
                 Converters = { new ExpressionConverter() }
             };
-            var remoteExpression = JsonSerializer.Deserialize<Remote.Linq.Expressions.LambdaExpression>(serializedQuery, options);
+            var remoteExpression = System.Text.Json.JsonSerializer.Deserialize<Remote.Linq.Expressions.LambdaExpression>(serializedQuery, options);
             var outerExpression = remoteExpression.ToLinqExpression<Expression<Func<Expression<Func<IQueryable<T>, IQueryable<T>>>>>>();
         
             // Extract the inner expression
