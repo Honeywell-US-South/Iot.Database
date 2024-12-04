@@ -1,5 +1,7 @@
 using Remote.Linq;
+using Remote.Linq.Text.Json;
 using System.Linq.Expressions;
+using System.Text.Json;
 
 namespace Iot.Database.Queries
 {
@@ -13,26 +15,27 @@ namespace Iot.Database.Queries
             _data = data;
         }
 
-        public IEnumerable<T> ExecuteQuery(string queryJson)
+        public object? ExecuteQuery(string queryJson)
         {
-            var query = DeserializeQuery(queryJson);
-            var compiledQuery = query.Compile();
-            return compiledQuery(_data.AsQueryable()).ToList();
+            // Deserialize the query
+            var remoteExpression = DeserializeQuery(queryJson);
+            var c = remoteExpression.Compile();
+            var result = c.DynamicInvoke(_data.AsQueryable());
+       
+            
+
+            return result;
         }
 
-       private Expression<Func<IQueryable<T>, IQueryable<T>>> DeserializeQuery(string serializedQuery)
+
+        private LambdaExpression DeserializeQuery(string serializedQuery)
         {
-            var options = new System.Text.Json.JsonSerializerOptions
-            {
-                Converters = { new ExpressionConverter() }
-            };
-            var remoteExpression = System.Text.Json.JsonSerializer.Deserialize<Remote.Linq.Expressions.LambdaExpression>(serializedQuery, options);
-            var outerExpression = remoteExpression.ToLinqExpression<Expression<Func<Expression<Func<IQueryable<T>, IQueryable<T>>>>>>();
-        
-            // Extract the inner expression
-            var innerExpression = (Expression<Func<IQueryable<T>, IQueryable<T>>>)outerExpression.Body;
-        
-            return innerExpression;
+            
+            JsonSerializerOptions serializerOptions = new JsonSerializerOptions().ConfigureRemoteLinq();
+            var remoteExpression = System.Text.Json.JsonSerializer.Deserialize<Remote.Linq.Expressions.LambdaExpression>(serializedQuery, serializerOptions);
+       
+
+            return remoteExpression.ToLinqExpression();
         }
 
 
@@ -45,8 +48,9 @@ namespace Iot.Database.Queries
 
         public string Build<TResult>(Expression<Func<IQueryable<T>, TResult>> query)
         {
-            var remoteExpression = query.ToRemoteLinqExpression();
-            return System.Text.Json.JsonSerializer.Serialize(remoteExpression);
+            JsonSerializerOptions serializerOptions = new JsonSerializerOptions().ConfigureRemoteLinq();
+            string json = System.Text.Json.JsonSerializer.Serialize(query.ToRemoteLinqExpression(), serializerOptions);
+            return json;
         }
 
         
