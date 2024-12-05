@@ -1194,7 +1194,7 @@ public partial class IotValue : IDisposable
     /// </summary>
     /// <param name="executionFunction"></param>
     /// <param name="intervalMilliseconds"></param>
-    private void InitQuery(Func<string, object> executionFunction,
+    public void InitQuery(Func<string, object> executionFunction,
                              int intervalMilliseconds = 0)
     {
         _queryIntervalMs = intervalMilliseconds;
