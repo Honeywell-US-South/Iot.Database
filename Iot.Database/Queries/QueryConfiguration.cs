@@ -10,7 +10,7 @@ namespace Iot.Database.Queries
         [JsonIgnore]
         [BsonIgnore]
         [XmlIgnore]
-        public Func<string, object>? ExecutionFunction { get; set; }
+        public Func<string, object?>? ExecutionFunction { get; set; }
         public int IntervalMilliseconds { get; set; }
         public DateTime LastExecuted { get; set; }
         [JsonIgnore]
