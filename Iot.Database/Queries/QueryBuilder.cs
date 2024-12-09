@@ -1,3 +1,4 @@
+using Iot.Database.IotValueUnits;
 using Remote.Linq;
 using Remote.Linq.Text.Json;
 using System.Linq.Expressions;
@@ -15,16 +16,15 @@ namespace Iot.Database.Queries
             _data = data;
         }
 
-        public object? ExecuteQuery(string queryJson)
+        public IotValue ExecuteQuery(string queryJson)
         {
             // Deserialize the query
             var remoteExpression = DeserializeQuery(queryJson);
             var c = remoteExpression.Compile();
             var result = c.DynamicInvoke(_data.AsQueryable());
-       
-            
-
-            return result;
+        
+            IotValue iotValue = new("ExecuteQuery", "Execute Query Result", result, Units.no_unit);
+            return iotValue;
         }
 
 
