@@ -2,6 +2,7 @@ using Iot.Database.Helper;
 using Iot.Database.IotValueUnits;
 using Iot.Database.Queries;
 using System.Data;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -590,6 +591,28 @@ public partial class IotValue : IDisposable
     #endregion
 
     #region Set
+
+    public bool SetIotDbId(Guid id)
+    {
+        var idProperty = this.GetType().GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
+        if (idProperty != null && idProperty.PropertyType == typeof(Guid))
+        {
+            idProperty.SetValue(this, id);
+            return true;
+        }
+        return false;
+    }
+
+    public Guid? GetIotDbId()
+    {
+        var idProperty = this.GetType().GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
+        if (idProperty != null && idProperty.PropertyType == typeof(Guid))
+        {
+            return (Guid?)idProperty.GetValue(this);
+        }
+        return null;
+    }
+
     /// <summary>
     /// Priority 1: Manual Operator Override (Highest priority)
     /// Priority 2: Critical Equipment Control
