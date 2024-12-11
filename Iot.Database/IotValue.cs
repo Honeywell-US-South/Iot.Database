@@ -1,4 +1,4 @@
-﻿using Iot.Database.Helper;
+using Iot.Database.Helper;
 using Iot.Database.IotValueUnits;
 using Iot.Database.Queries;
 using System.Data;
@@ -122,7 +122,7 @@ public partial class IotValue : IDisposable
     #endregion
 
     #region Raw Value and Type
-    private bool SetRawValue(int index, string? value)
+    private bool SetRawValue(int index, string? value, DateTime? timestamp = null)
     {
         if (index < 0 && index >= Values.Length) return false;
 
@@ -134,7 +134,7 @@ public partial class IotValue : IDisposable
         }
 
         Values[index] = value;
-        Timestamps[index] = value == null?null: DateTime.UtcNow;
+        Timestamps[index] = value == null?null: (timestamp == null?DateTime.UtcNow:timestamp.Value.ToUniversalTime());
         
 
         return true;
@@ -520,7 +520,7 @@ public partial class IotValue : IDisposable
     [JsonIgnore]
     [BsonIgnore]
     public bool IsString => !IsNull && !IsBoolean && !IsDateTime && !IsGuid && !IsNumeric && !IsChar && !IsJson;
-    
+
     /// <summary>
     /// Check if value is T type
     /// </summary>
@@ -612,7 +612,7 @@ public partial class IotValue : IDisposable
     /// <param name="priority">int</param>
     /// <param name="value">object</param>
     /// <returns>true/false</returns>
-    public bool SetValue(int priority, object? value)
+    public bool SetValue(int priority, object? value, DateTime? timestamp = null)
     {
         Validate(priority, value);
         if (IsPriority9Only && priority != 9) return false;
