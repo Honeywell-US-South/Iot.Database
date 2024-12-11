@@ -1,4 +1,4 @@
-﻿using Iot.Database.Table;
+using Iot.Database.Table;
 using Iot.Database.Vector;
 using Microsoft.ML;
 
@@ -24,39 +24,69 @@ namespace Iot.Database
             // Initialize ML.NET context
             _mlContext = new MLContext();
 
-            // Define the ML.NET pipeline for text featurization
-            var pipeline = _mlContext.Transforms.Text.FeaturizeText("Features", nameof(VectorData.Text));
-            _textFeaturizer = pipeline.Fit(_mlContext.Data.LoadFromEnumerable(new List<VectorData>()));
+            try
+            {
+                var data = new List<VectorData>
+                {
+                    new VectorData { Text = "This is a sample text." },
+                    new VectorData { Text = "Another example text." }
+                };
+
+                // Load data
+                var dataView = _mlContext.Data.LoadFromEnumerable(data);
+
+                // Define the ML.NET pipeline for text featurization
+                var pipeline = _mlContext.Transforms.Text.FeaturizeText("Features", nameof(VectorData.Text));
+                _textFeaturizer = pipeline.Fit(dataView);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to initialize ML.NET pipeline for text featurization. {ex.Message}");
+            }
         }
 
         public void CreateAsync(T item)
         {
+            var dbItem = _collection.FindOne(x => x.Guid.Equals(item.Guid, StringComparison.OrdinalIgnoreCase));
+            if (dbItem != null && dbItem.Timestamp == item.Timestamp) return; //item as not changed
             // Generate embedding for item
             string serializedItem = Newtonsoft.Json.JsonConvert.SerializeObject(item);
+            var features = GetTextEmbedding(serializedItem);
 
-            var jsonData = new List<VectorData> { new VectorData { Text = serializedItem } };
+            //var jsonData = new List<VectorData> { new VectorData { Text = serializedItem } };
+            
+            //var dataView = _mlContext.Data.LoadFromEnumerable(jsonData);
+            //var transformedData = _textFeaturizer.Transform(dataView);
 
-            var dataView = _mlContext.Data.LoadFromEnumerable(jsonData);
-            var transformedData = _textFeaturizer.Transform(dataView);
-
-            // Extract the embedding
-            var features = _mlContext.Data.CreateEnumerable<TransformedVectorData>(transformedData, reuseRowObject: false).FirstOrDefault();
-            if (features?.Features != null)
+            //// Extract the embedding
+            //var features = _mlContext.Data.CreateEnumerable<TransformedVectorData>(transformedData, reuseRowObject: false).FirstOrDefault();
+            if (features != null)
             {
-                item.Embedding = features.Features.ToList();
+                item.Embedding = features.ToList();
             }
             
             // Save the Monster object to IotCollection
-            var dbItem = _collection.FindOne(x=>x.Guid.Equals(item.Guid, StringComparison.OrdinalIgnoreCase));
-            if (dbItem != null)
+            
+            if (dbItem == null)
+            {//new
+                _collection.Insert(item);
+            }
+            else
             {//update
                 dbItem.CopyFrom(item);
                 _collection.Update(dbItem);
             }
-            else
-            {//new
-                _collection.Insert(item);
+        }
+
+        public async Task<List<T>> Search(string searchText)
+        {
+            var embedding = GetTextEmbedding(searchText);
+            if (embedding != null)
+            {
+                return await Search(embedding);
             }
+
+            return new();
         }
 
         public async Task<List<T>> Search(float[] embedding)
@@ -84,6 +114,16 @@ namespace Iot.Database
             }
 
             return await Task.FromResult(relevantItems);
+        }
+
+        public float[] GetTextEmbedding(string text)
+        {
+            var data = new List<VectorData> { new VectorData { Text = text } };
+            var dataView = _mlContext.Data.LoadFromEnumerable(data);
+            var transformedData = _textFeaturizer.Transform(dataView);
+
+            var features = _mlContext.Data.CreateEnumerable<TransformedVectorData>(transformedData, reuseRowObject: false).FirstOrDefault();
+            return features?.Features ?? Array.Empty<float>();
         }
 
         private double CalculateCosineSimilarity(float[]? vectorA, float[]? vectorB)
