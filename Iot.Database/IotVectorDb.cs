@@ -1,17 +1,21 @@
 using Iot.Database.Table;
-using Iot.Database.Vector;
-using Microsoft.ML;
+using System.Collections.Concurrent;
 
 namespace Iot.Database
 {
     public class IotVectorDb<T> where T : IotValue
     {
-        TableCollection<T> _collection;
-        private readonly MLContext _mlContext;
-        private readonly ITransformer _textFeaturizer;
+        private readonly object _queueLock = new object();
+        private readonly TableCollection<T> _collection;
+        private readonly Func<object, Task<float[]?>> _embeddingFunction;
+        private readonly ConcurrentQueue<T> _queue = new ConcurrentQueue<T>();
+        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
+        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 
-        public IotVectorDb(string path = "", string name = "", string password = "")
+        public IotVectorDb(Func<object, Task<float[]?>> embeddingFunction, string path = "", string name = "", string password = "")
         {
+            _embeddingFunction = embeddingFunction ?? throw new ArgumentNullException(nameof(embeddingFunction));
+
             if (string.IsNullOrEmpty(path))
             {
                 path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "iotdb");
@@ -21,66 +25,116 @@ namespace Iot.Database
             if (string.IsNullOrEmpty(name)) name = typeof(T).Name;
             _collection = new(path, name, password);
 
-            // Initialize ML.NET context
-            _mlContext = new MLContext();
+            // Start the background task to process the queue
+            Task.Run(ProcessQueueAsync);
+        }
 
-            try
+        public void QueueCreate(T item)
+        {
+            lock (_queueLock)
             {
-                var data = new List<VectorData>
+                // Create a temporary queue to hold items that don't match the Guid
+                var tempQueue = new ConcurrentQueue<T>();
+
+                while (_queue.TryDequeue(out var existingItem))
                 {
-                    new VectorData { Text = "This is a sample text." },
-                    new VectorData { Text = "Another example text." }
-                };
+                    if (!existingItem.Guid.Equals(item.Guid, StringComparison.OrdinalIgnoreCase))
+                    {
+                        tempQueue.Enqueue(existingItem);
+                    }
+                }
 
-                // Load data
-                var dataView = _mlContext.Data.LoadFromEnumerable(data);
+                // Enqueue the new item
+                tempQueue.Enqueue(item);
 
-                // Define the ML.NET pipeline for text featurization
-                var pipeline = _mlContext.Transforms.Text.FeaturizeText("Features", nameof(VectorData.Text));
-                _textFeaturizer = pipeline.Fit(dataView);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Failed to initialize ML.NET pipeline for text featurization. {ex.Message}");
+                // Reassign the original queue to the filtered queue
+                while (tempQueue.TryDequeue(out var tempItem))
+                {
+                    _queue.Enqueue(tempItem);
+                }
             }
         }
 
-        public void CreateAsync(T item)
+        public int GetQueueCount()
         {
-            var dbItem = _collection.FindOne(x => x.Guid.Equals(item.Guid, StringComparison.OrdinalIgnoreCase));
-            if (dbItem != null && dbItem.Timestamp == item.Timestamp) return; //item as not changed
-            // Generate embedding for item
-            string serializedItem = Newtonsoft.Json.JsonConvert.SerializeObject(item);
-            var features = GetTextEmbedding(serializedItem);
+            return _queue.Count;
+        }
 
-            //var jsonData = new List<VectorData> { new VectorData { Text = serializedItem } };
-            
-            //var dataView = _mlContext.Data.LoadFromEnumerable(jsonData);
-            //var transformedData = _textFeaturizer.Transform(dataView);
-
-            //// Extract the embedding
-            //var features = _mlContext.Data.CreateEnumerable<TransformedVectorData>(transformedData, reuseRowObject: false).FirstOrDefault();
-            if (features != null)
+        private async Task ProcessQueueAsync()
+        {
+            while (!_cancellationTokenSource.Token.IsCancellationRequested)
             {
-                item.Embedding = features.ToList();
+                T item = default;
+                bool hasItem = false;
+
+                lock (_queueLock)
+                {
+                    if (_queue.TryDequeue(out item))
+                    {
+                        hasItem = true;
+                    }
+                }
+
+                if (hasItem)
+                {
+                    await CreateAsync(item);
+                }
+                else
+                {
+                    await Task.Delay(100); // Wait for a short period before checking the queue again
+                }
             }
-            
-            // Save the Monster object to IotCollection
-            
-            if (dbItem == null)
-            {//new
-                _collection.Insert(item);
-            }
-            else
-            {//update
+        }
+
+        private async Task CreateAsync(T item)
+        {
+            await _semaphore.WaitAsync();
+            try
+            {
+                bool newItem = true;
+                Guid id = Guid.Empty;
+                var dbItem = _collection.FindOne(x => x.Guid.Equals(item.Guid, StringComparison.OrdinalIgnoreCase));
+                if (dbItem != null && dbItem.Timestamp == item.Timestamp) return; // item has not changed
+                if (dbItem == null)
+                {
+                    newItem = true;
+                    dbItem = (T)(new IotValue());
+                }
+                else
+                {
+                    newItem = false;
+                    id = dbItem.GetIotDbId() ?? Guid.Empty;
+                }
+
                 dbItem.CopyFrom(item);
-                _collection.Update(dbItem);
+
+                // Generate embedding for item
+                var embedding = await _embeddingFunction(item);
+
+                if (embedding == null) return;
+
+                dbItem.Embedding = embedding.ToList();
+
+                if (newItem)
+                { // new
+                    _collection.Insert(dbItem);
+                }
+                else
+                { // update
+                    dbItem.SetIotDbId(id);
+                    _collection.Update(dbItem);
+                }
+            }
+            finally
+            {
+                _semaphore.Release();
             }
         }
 
         public async Task<List<T>> Search(string searchText)
         {
-            var embedding = GetTextEmbedding(searchText);
+            var embedding = await _embeddingFunction(searchText);
+
             if (embedding != null)
             {
                 return await Search(embedding);
@@ -116,16 +170,6 @@ namespace Iot.Database
             return await Task.FromResult(relevantItems);
         }
 
-        public float[] GetTextEmbedding(string text)
-        {
-            var data = new List<VectorData> { new VectorData { Text = text } };
-            var dataView = _mlContext.Data.LoadFromEnumerable(data);
-            var transformedData = _textFeaturizer.Transform(dataView);
-
-            var features = _mlContext.Data.CreateEnumerable<TransformedVectorData>(transformedData, reuseRowObject: false).FirstOrDefault();
-            return features?.Features ?? Array.Empty<float>();
-        }
-
         private double CalculateCosineSimilarity(float[]? vectorA, float[]? vectorB)
         {
             if (vectorA == null || vectorB == null || vectorA.Length != vectorB.Length)
@@ -145,8 +189,5 @@ namespace Iot.Database
 
             return dotProduct / (Math.Sqrt(magnitudeA) * Math.Sqrt(magnitudeB));
         }
-
-        
-
     }
 }
