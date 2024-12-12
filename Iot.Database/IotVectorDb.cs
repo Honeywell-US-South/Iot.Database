@@ -1,9 +1,10 @@
+using Iot.Database.IotValueUnits;
 using Iot.Database.Table;
 using System.Collections.Concurrent;
 
 namespace Iot.Database
 {
-    public class IotVectorDb<T> where T : IotValue
+    public class IotVectorDb<T> where T : ValueBase
     {
         private readonly object _queueLock = new object();
         private readonly TableCollection<T> _collection;
@@ -29,28 +30,37 @@ namespace Iot.Database
             Task.Run(ProcessQueueAsync);
         }
 
-        public void QueueCreate(T item)
+
+
+        public void InsertUpdateQueue(T item)
         {
             lock (_queueLock)
             {
                 // Create a temporary queue to hold items that don't match the Guid
-                var tempQueue = new ConcurrentQueue<T>();
-
-                while (_queue.TryDequeue(out var existingItem))
+                var itemInQueue = _queue.Any(x => x.Guid.Equals(item.Guid, StringComparison.CurrentCultureIgnoreCase));
+                if (itemInQueue)
                 {
-                    if (!existingItem.Guid.Equals(item.Guid, StringComparison.OrdinalIgnoreCase))
+                    var tempQueue = new ConcurrentQueue<T>();
+                    while (_queue.TryDequeue(out var existingItem))
                     {
-                        tempQueue.Enqueue(existingItem);
+                        if (!existingItem.Guid.Equals(item.Guid, StringComparison.OrdinalIgnoreCase))
+                        {
+                            tempQueue.Enqueue(existingItem);
+                        }
+                    }
+
+                    // Enqueue the new item
+                    tempQueue.Enqueue(item);
+
+                    // Reassign the original queue to the filtered queue
+                    while (tempQueue.TryDequeue(out var tempItem))
+                    {
+                        _queue.Enqueue(tempItem);
                     }
                 }
-
-                // Enqueue the new item
-                tempQueue.Enqueue(item);
-
-                // Reassign the original queue to the filtered queue
-                while (tempQueue.TryDequeue(out var tempItem))
+                else
                 {
-                    _queue.Enqueue(tempItem);
+                    _queue.Enqueue(item);
                 }
             }
         }
@@ -77,7 +87,7 @@ namespace Iot.Database
 
                 if (hasItem)
                 {
-                    await CreateAsync(item);
+                    await InsertUpdate(item);
                 }
                 else
                 {
@@ -86,7 +96,7 @@ namespace Iot.Database
             }
         }
 
-        private async Task CreateAsync(T item)
+        private async Task InsertUpdate(T item)
         {
             await _semaphore.WaitAsync();
             try
@@ -94,11 +104,11 @@ namespace Iot.Database
                 bool newItem = true;
                 Guid id = Guid.Empty;
                 var dbItem = _collection.FindOne(x => x.Guid.Equals(item.Guid, StringComparison.OrdinalIgnoreCase));
-                if (dbItem != null && dbItem.Timestamp == item.Timestamp) return; // item has not changed
+                if (dbItem != null && dbItem.JsonTimestamp == item.JsonTimestamp) return; // item has not changed
                 if (dbItem == null)
                 {
                     newItem = true;
-                    dbItem = (T)(new IotValue());
+                    dbItem = (T)Activator.CreateInstance(typeof(T));
                 }
                 else
                 {
@@ -124,6 +134,9 @@ namespace Iot.Database
                     dbItem.SetIotDbId(id);
                     _collection.Update(dbItem);
                 }
+            } catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
             }
             finally
             {
