@@ -13,13 +13,11 @@ using System.Xml.Serialization;
 namespace Iot.Database;
 
 [Serializable]
-public partial class IotValue : IDisposable
+public partial class IotValue : ValueBase, IDisposable
 {
-    public string Guid { get; set; } = System.Guid.NewGuid().ToString();
-    public string Name { get; set; }
-    public string Description { get; set; } = string.Empty;
-    public string?[] Values { get; set; } = new string?[17];
-    public DateTime?[] Timestamps { get; set; } = new DateTime?[17];
+    private const int _numPriorities = 17;
+    public string?[] Values { get; set; } = new string?[_numPriorities];
+    public DateTime?[] Timestamps { get; set; } = new DateTime?[_numPriorities];
     public IotUnit Unit { get; set; } = Units.no_unit;
     public string? StrictDataType { get; set; } = null;
     public IotValueFlags Flags { get; set; } = IotValueFlags.None;
@@ -592,26 +590,7 @@ public partial class IotValue : IDisposable
 
     #region Set
 
-    public bool SetIotDbId(Guid id)
-    {
-        var idProperty = this.GetType().GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
-        if (idProperty != null && idProperty.PropertyType == typeof(Guid))
-        {
-            idProperty.SetValue(this, id);
-            return true;
-        }
-        return false;
-    }
-
-    public Guid? GetIotDbId()
-    {
-        var idProperty = this.GetType().GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
-        if (idProperty != null && idProperty.PropertyType == typeof(Guid))
-        {
-            return (Guid?)idProperty.GetValue(this);
-        }
-        return null;
-    }
+   
 
     /// <summary>
     /// Priority 1: Manual Operator Override (Highest priority)
@@ -1195,12 +1174,7 @@ public partial class IotValue : IDisposable
 
     #endregion
 
-    #region Vector
-    [JsonIgnore]
-    [BsonIgnore]
-    [XmlIgnore]
-    public List<float>? Embedding { get; set; }
-    #endregion
+    
 
     #region Query
 
@@ -1241,16 +1215,28 @@ public partial class IotValue : IDisposable
     /// <returns>true/false</returns>
     public bool SetValue17QueryConfigurationParameter(QueryConfiguration? value) 
     {
-        _queryConfig = value;
-        return SetValue(17, value);
+        try
+        {
+            _queryConfig = value;
+            if (value == null)
+            {
+                JsonQueryConfiguration = string.Empty;
+            }
+            else
+            {
+                JsonQueryConfiguration = System.Text.Json.JsonSerializer.Serialize(value);
+            }
+        }
+        catch { return false; }
+        return true;
     }
-    
+   
     public QueryConfiguration? GetQueryConfiguration()
     {
         if (_queryConfig == null) 
         {
-            if (string.IsNullOrEmpty(Values[16])) return null;
-            _queryConfig = System.Text.Json.JsonSerializer.Deserialize<QueryConfiguration>(Values[16]);
+            if (string.IsNullOrEmpty(JsonQueryConfiguration)) return null;
+            _queryConfig = System.Text.Json.JsonSerializer.Deserialize<QueryConfiguration>(JsonQueryConfiguration);
         }
         return _queryConfig;
     }
