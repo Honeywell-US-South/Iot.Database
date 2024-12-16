@@ -1,3 +1,4 @@
+using FaissNet;
 using Iot.Database.IotValueUnits;
 using Iot.Database.Table;
 using System.Collections.Concurrent;
@@ -144,63 +145,137 @@ namespace Iot.Database
             }
         }
 
-        public async Task<List<T>> Search(string searchText)
+        public async Task<List<T>> SearchTopK(string searchText, int k = 10)
         {
             var embedding = await _embeddingFunction(searchText);
 
-            if (embedding != null)
+            if (embedding != null && embedding.Length > 0)
             {
-                return await Search(embedding);
+                return await SearchTopK(embedding, k);
             }
 
             return new();
         }
 
-        public async Task<List<T>> Search(float[] embedding)
+        public async Task<List<T>> SearchTopK(float[] queryVector, int k = 10)
         {
-            // Perform vector similarity search in memory
+            int dimension = queryVector.Length; // Dimensionality of vectors
             var allItems = _collection.FindAll().ToList();
+            int dataSize = allItems.Count; // Number of vectors
 
-            // Calculate cosine similarity or other similarity metric
-            var relevantItems = allItems
-                .Select(item => new
-                {
-                    Item = item,
-                    Similarity = CalculateCosineSimilarity(item.Embedding?.ToArray(), embedding)
-                })
-                .Where(x => x.Similarity > 0.9) // Set threshold as needed
-                .OrderByDescending(x => x.Similarity)
-                .Take(10)
-                .Select(x => x.Item)
+            // Create an index with L2 metric
+            using var index = FaissNet.Index.CreateDefault(dimension, MetricType.METRIC_L2);
+
+            // Prepare data for the index
+            float[][] data = new float[dataSize][];
+            for (int i = 0; i < dataSize; i++)
+            {
+                data[i] = allItems[i].Embedding?.ToArray() ?? new float[dimension];
+            }
+
+            // Add data to the index
+            index.Add(data);
+
+            // Search for the top K nearest neighbors
+            var (distances, ids) = index.Search(new[] { queryVector }, k);
+
+            // Map the results back to the original items
+            
+            var result = ids[0].Select(id => allItems[(int)id]).ToList();
+
+            return await Task.FromResult(result);
+        }
+
+        public async Task<List<T>> SearchRadius(string searchText, float radius = 5.0f)
+        {
+            var embedding = await _embeddingFunction(searchText);
+
+            if (embedding != null && embedding.Length > 0)
+            {
+                return await SearchRadius(embedding, radius);
+            }
+
+            return new();
+        }
+        public async Task<List<T>> SearchRadius(float[] queryVector, float radius)
+        {
+            int dimension = queryVector.Length; // Dimensionality of vectors
+            var allItems = _collection.FindAll().ToList();
+            int dataSize = allItems.Count; // Number of vectors
+
+            // Create an index with L2 metric
+            using var index = FaissNet.Index.CreateDefault(dimension, MetricType.METRIC_L2);
+
+            // Prepare data for the index
+            float[][] data = new float[dataSize][];
+            for (int i = 0; i < dataSize; i++)
+            {
+                data[i] = allItems[i].Embedding?.ToArray() ?? new float[dimension];
+            }
+
+            // Add data to the index
+            index.Add(data);
+
+            // Perform a large search (k = dataSize)
+            var (distances, ids) = index.Search(new[] { queryVector }, dataSize);
+
+            // Filter results by radius
+            var filteredResults = ids[0]
+                .Zip(distances[0], (id, distance) => new { id, distance })
+                .Where(x => x.distance <= radius)
+                .Select(x => allItems[(int)x.id])
                 .ToList();
 
-            // Clean up unnecessary data
-            foreach (var item in relevantItems)
-            {
-                item.Embedding = null;
-            }
-
-            return await Task.FromResult(relevantItems);
+            return await Task.FromResult(filteredResults);
         }
 
-        private double CalculateCosineSimilarity(float[]? vectorA, float[]? vectorB)
-        {
-            if (vectorA == null || vectorB == null || vectorA.Length != vectorB.Length)
-                return 0;
 
-            double dotProduct = 0, magnitudeA = 0, magnitudeB = 0;
 
-            for (int i = 0; i < vectorA.Length; i++)
-            {
-                dotProduct += vectorA[i] * vectorB[i];
-                magnitudeA += vectorA[i] * vectorA[i];
-                magnitudeB += vectorB[i] * vectorB[i];
-            }
+        //public async Task<List<T>> Search(float[] embedding)
+        //{
+        //    // Perform vector similarity search in memory
+        //    var allItems = _collection.FindAll().ToList();
 
-            if (magnitudeA == 0 || magnitudeB == 0)
-                return 0;
+        //    // Calculate cosine similarity or other similarity metric
+        //    var relevantItems = allItems
+        //        .Select(item => new
+        //        {
+        //            Item = item,
+        //            Similarity = CalculateCosineSimilarity(item.Embedding?.ToArray(), embedding)
+        //        })
+        //        .Where(x => x.Similarity > 0.9) // Set threshold as needed
+        //        .OrderByDescending(x => x.Similarity)
+        //        .Take(10)
+        //        .Select(x => x.Item)
+        //        .ToList();
 
-            return dotProduct / (Math.Sqrt(magnitudeA) * Math.Sqrt(magnitudeB));
-        }
+        //    // Clean up unnecessary data
+        //    foreach (var item in relevantItems)
+        //    {
+        //        item.Embedding = null;
+        //    }
+
+        //    return await Task.FromResult(relevantItems);
+        //}
+
+        //private double CalculateCosineSimilarity(float[]? vectorA, float[]? vectorB)
+        //{
+        //    if (vectorA == null || vectorB == null || vectorA.Length != vectorB.Length)
+        //        return 0;
+
+        //    double dotProduct = 0, magnitudeA = 0, magnitudeB = 0;
+
+        //    for (int i = 0; i < vectorA.Length; i++)
+        //    {
+        //        dotProduct += vectorA[i] * vectorB[i];
+        //        magnitudeA += vectorA[i] * vectorA[i];
+        //        magnitudeB += vectorB[i] * vectorB[i];
+        //    }
+
+        //    if (magnitudeA == 0 || magnitudeB == 0)
+        //        return 0;
+
+        //    return dotProduct / (Math.Sqrt(magnitudeA) * Math.Sqrt(magnitudeB));
+        //}
     }
 }
