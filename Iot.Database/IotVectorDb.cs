@@ -2,6 +2,7 @@ using FaissNet;
 using Iot.Database.IotValueUnits;
 using Iot.Database.Table;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace Iot.Database
 {
@@ -31,7 +32,10 @@ namespace Iot.Database
             Task.Run(ProcessQueueAsync);
         }
 
+        #region Get
 
+        public ITableCollection<T> Collection => _collection;
+        #endregion
 
         public void InsertUpdateQueue(T item)
         {
@@ -208,19 +212,21 @@ namespace Iot.Database
 
             // Prepare data for the index
             float[][] data = new float[dataSize][];
+            long[] ids = new long[dataSize];
             for (int i = 0; i < dataSize; i++)
             {
                 data[i] = allItems[i].Embedding?.ToArray() ?? new float[dimension];
+                ids[i] = i; // Assign unique IDs to each vector
             }
 
-            // Add data to the index
-            index.Add(data);
+            // Add data to the index with IDs
+            index.AddWithIds(data, ids);
 
             // Perform a large search (k = dataSize)
-            var (distances, ids) = index.Search(new[] { queryVector }, dataSize);
+            var (distances, searchIds) = index.Search(new[] { queryVector }, dataSize);
 
             // Filter results by radius
-            var filteredResults = ids[0]
+            var filteredResults = searchIds[0]
                 .Zip(distances[0], (id, distance) => new { id, distance })
                 .Where(x => x.distance <= radius)
                 .Select(x => allItems[(int)x.id])
@@ -229,7 +235,65 @@ namespace Iot.Database
             return await Task.FromResult(filteredResults);
         }
 
+        public async Task<List<T>> SearchCosAsync(string searchText, int maxVectorSearchResults = 150)
+        {
+            var embedding = await _embeddingFunction(searchText);
 
+            if (embedding != null && embedding.Length > 0)
+            {
+                return await SearchCosAsync(embedding, maxVectorSearchResults);
+            }
+
+            return new();
+        }
+        public async Task<List<T>> SearchCosAsync(float[] embedding, int maxVectorSearchResults = 150)
+        {
+            // Perform a search based on the embedding
+            var allItems = _collection.FindAll().ToList();
+            var results = allItems
+                .Select(item => new
+                {
+                    Item = item,
+                    Distance = CosineSimilarity(item.Embedding.ToArray(), embedding)
+                })
+                .Where(x=>x.Distance >= .55)
+                .OrderBy(x => x.Distance)
+                .Take(maxVectorSearchResults)
+                .Select(x => x.Item)
+                .ToList();
+
+            // Clean up unnecessary data to send to completions AI models
+            foreach (var item in results)
+            {
+                item.Embedding = null;
+            }
+
+            return await Task.FromResult(results);
+        }
+
+        private double CosineSimilarity(float[] vectorA, float[] vectorB)
+        {
+            double dotProduct = 0.0;
+            double magnitudeA = 0.0;
+            double magnitudeB = 0.0;
+
+            for (int i = 0; i < vectorA.Length; i++)
+            {
+                dotProduct += vectorA[i] * vectorB[i];
+                magnitudeA += Math.Pow(vectorA[i], 2);
+                magnitudeB += Math.Pow(vectorB[i], 2);
+            }
+
+            magnitudeA = Math.Sqrt(magnitudeA);
+            magnitudeB = Math.Sqrt(magnitudeB);
+
+            if (magnitudeA == 0 || magnitudeB == 0)
+            {
+                return 0;
+            }
+
+            return dotProduct / (magnitudeA * magnitudeB);
+        }
 
         //public async Task<List<T>> Search(float[] embedding)
         //{
