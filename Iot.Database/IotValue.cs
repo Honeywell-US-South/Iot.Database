@@ -2,7 +2,6 @@ using Iot.Database.Helper;
 using Iot.Database.IotValueUnits;
 using Iot.Database.Queries;
 using System.Data;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
