@@ -235,32 +235,32 @@ public class IotVectorDb<T> where T : ValueBase
     }
 
     /// <summary>
-    /// Similarity value between -1 and 1. 1 indicates maximum similarity, 0 indicates no similarity, and  -1 indicates maximum dissimilarity
+    /// Relevance score value between -1 and 1. 1 indicates exact match, 0 indicates not matching, and  -1 indicates maximum dissimilarity
     /// </summary>
     /// <param name="searchText"></param>
-    /// <param name="similarity"></param>
-    /// <param name="maxVectorSearchResults"></param>
+    /// <param name="minRelevanceScore"></param>
+    /// <param name="limit"></param>
     /// <returns></returns>
-    public async Task<List<T>> SearchCosSimilarityAsync(string searchText, double similarity = 0.55, int maxVectorSearchResults = 150)
+    public async Task<List<T>> SearchCosSimilarityAsync(string searchText, double minRelevanceScore = 0.55, int limit = 150)
     {
         var embedding = await _embeddingFunction(searchText);
 
         if (embedding != null && embedding.Length > 0)
         {
-            return await SearchCosSimilarityAsync(embedding, similarity, maxVectorSearchResults);
+            return await SearchCosSimilarityAsync(embedding, minRelevanceScore, limit);
         }
 
         return new();
     }
 
     /// <summary>
-    /// Similarity value between -1 and 1. 1 indicates maximum similarity, 0 indicates no similarity, and  -1 indicates maximum dissimilarity
+    /// Relevance score value between -1 and 1. 1 indicates exact match, 0 indicates not matching, and  -1 indicates maximum dissimilarity
     /// </summary>
     /// <param name="embedding"></param>
-    /// <param name="similarity"></param>
-    /// <param name="maxVectorSearchResults"></param>
+    /// <param name="minRelevanceScore"></param>
+    /// <param name="limit"></param>
     /// <returns></returns>
-    public async Task<List<T>> SearchCosSimilarityAsync(float[] embedding, double similarity = 0.55, int maxVectorSearchResults = 150)
+    public async Task<List<T>> SearchCosSimilarityAsync(float[] embedding, double minRelevanceScore = 0.55, int limit = 150)
     {
         // Perform a search based on the embedding
         var allItems = _collection.FindAll().ToList();
@@ -270,9 +270,9 @@ public class IotVectorDb<T> where T : ValueBase
                 Item = item,
                 Similarity = CosineSimilarity(item.Embedding.ToArray(), embedding)
             })
-            .Where(x=>x.Similarity >= similarity)
+            .Where(x=>x.Similarity >= minRelevanceScore)
             .OrderByDescending(x => x.Similarity)
-            .Take(maxVectorSearchResults)
+            .Take(limit)
             .Select(x => x.Item)
             .ToList();
 
