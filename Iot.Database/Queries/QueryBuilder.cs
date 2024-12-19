@@ -55,7 +55,7 @@ namespace Iot.Database.Queries
         }
 
         #region Schema
-        public static string SerializeQueryableStructure(IQueryable<T> queryable)
+        public static string SerializeQueryableStructure(T queryable)
         {
             var type = typeof(T);
             var schema = GenerateSchema(type, new HashSet<Type>());
