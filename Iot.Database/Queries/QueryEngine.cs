@@ -397,7 +397,9 @@ namespace Iot.Database
 
             // Create and log the final lambda expression for debugging.
             var lambda = Expression.Lambda(finalExpression ?? Expression.Constant(true), parameter);
+#if DEBUG
             Console.WriteLine($"Generated Predicate: {lambda}");
+#endif
             return lambda;
         }
 

@@ -16,10 +16,18 @@ namespace Example.BasicDb
             
             // Populate some test data
             var customerTable = db.Tables<Customer>();
-            //customerTable.Insert(new Customer { Id = 1, Name = "John", Age = 30 });
-            //customerTable.Insert(new Customer { Id = 2, Name = "Jane", Age = 25 });
+            if (db.Tables<Customer>().Find(x => x.Id == 1) == null)
+            {
+                customerTable.Insert(new Customer { Id = 1, Name = "John", Age = 30 });
+            }
+            if (db.Tables<Customer>().Find(x => x.Id == 2) == null)
+            {
+                customerTable.Insert(new Customer { Id = 2, Name = "Jane", Age = 25 });
+            }
+                
 
-            var orderTable = db.Tables<Order>();
+                var orderTable = db.Tables<Order>();
+
             //orderTable.Insert(new Order { Id = 1, CustomerId = 1, Amount = 150.00m });
             //orderTable.Insert(new Order { Id = 2, CustomerId = 1, Amount = 200.00m });
             //orderTable.Insert(new Order { Id = 3, CustomerId = 2, Amount = 100.00m });

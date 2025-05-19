@@ -1,11 +1,21 @@
 ﻿
 # Iot.Database Library
-## Current Version: 0.0.10-beta
+## Current Version: 0.0.20-beta
 
 ## Overview
 
-Iot.Database is optimized for C# applications, offering a lightweight alternative to traditional databases. Iot.Database design based LiteDB for tables and TeaFiles for time series. 
+**IoT.Database** is a lightweight, embedded database library designed for IoT applications, providing a simple and intuitive interface for storing, querying, and managing data in a local database. It supports both programmatic and natural language-like queries, allowing developers to interact with data efficiently. The library is ideal for scenarios requiring local data storage with flexible querying capabilities, such as IoT devices, edge computing, or small-scale applications.
 
+## Features
+
+- **Embedded Database**: Runs locally without requiring a separate database server.
+- **Table Management**: Create and manage tables for structured data (e.g., `Customer`, `Order`, `Address`).
+- **Programmatic Queries**: Use a fluent API to query data with predicates and column aliases.
+- **Natural Language Queries**: Execute SQL-like queries with `FIND`, `WHERE`, `SELECT`, `INCLUDE`, and `INNERJOIN` clauses.
+- **Join Operations**: Perform inner joins on query results, supporting custom table names and column selection.
+- **Data Encryption**: Secure data with an encryption password.
+- **Flexible Column Selection**: Support for column aliases (e.g., `Name as Person`) and selecting all columns when none are specified.
+- 
 ## Versioning
 
 - Version format of X.Y.Z (Major.Minor.Patch).
@@ -16,6 +26,7 @@ Iot.Database is optimized for C# applications, offering a lightweight alternativ
 ## Goals
 
 - Easy to use
+- GPT Query Ready
 - Lightweight
 - Encryption
 - Quick and easy for IoT development and deployment
@@ -206,6 +217,98 @@ Initilize parent table first.
 iotData.Tables<Friend>();
 iotData.Tables<Address>();
 ```
+
+### Querying Data
+
+#### Programmatic Queries
+
+Use the `QueryEngine` to build queries programmatically with the `Find` and `Include` methods. Specify predicates, column aliases, and join operations:
+
+```csharp
+var resultsProgrammatic = db.Query
+    .Find<Customer>("Customer", c => c.Age > 25, "Name as Person", "Age")
+    .Include<Order>("Order", o => o.Amount > 100, "Amount as Total")
+    .Include<Address>("Address", a => a.AddressLine1.Contains("Main"), "AddressLine1 as Address")
+    .Execute("InnerJoin as My Table Select Person, Total, Address");
+```
+
+- **Output**:
+  ```json
+{"my table_Data":[{"Person":"John","Total":{"$numberDecimal":"200.00"}},{"Person":"John","Address":"123 Main St"}]}
+  ```
+
+#### Natural Language Queries
+
+Execute SQL-like queries with the `NaturalQuery` method, supporting `FIND`, `WHERE`, `SELECT`, `INCLUDE`, and `INNERJOIN` clauses:
+
+```csharp
+var resultsNatural = db.Query.NaturalQuery("FIND Customer WHERE Age > 25 and name startswith 'j' INCLUDE Order WHERE Amount > 150 SELECT Amount, CustomerId INNERJOIN as New Table Name select Name, Amount");
+```
+
+- **Output**:
+  ```json
+  {"New Table Name_Data":[{"Name":"John","Amount":{"$numberDecimal":"200.00"}}]}
+  ```
+
+### Displaying Results
+
+Iterate over query results to display the data:
+
+```csharp
+Console.WriteLine("Programmatic Query Results:");
+foreach (var result in resultsProgrammatic)
+{
+    Console.WriteLine($"{result.TableName} Result: {result.Data}");
+}
+
+Console.WriteLine("\nNatural Query Results:");
+foreach (var result in resultsNatural)
+{
+    Console.WriteLine($"Result: {result.Data}");
+}
+```
+
+## Query Syntax
+
+### Programmatic Query
+- **Find**: Specify the table, predicate, and columns (with optional aliases).
+  ```csharp
+  .Find<Customer>("Customer", c => c.Age > 25, "Name as Person", "Age")
+  ```
+- **Include**: Add related tables with predicates and columns.
+  ```csharp
+  .Include<Order>("Order", o => o.Amount > 100, "Amount as Total")
+  ```
+- **Execute**: Perform the query, optionally with a join command.
+  ```csharp
+  .Execute("InnerJoin as My Table Select Person, Total")
+  ```
+
+### Natural Query
+- **Syntax**: `FIND <table> [WHERE <condition>] [SELECT <columns>] [INCLUDE <related_table> WHERE <related_condition> [SELECT <related_columns>]] [INNERJOIN [as <tableName>] select <columns>] [ORDER BY <column> [ASC|DESC]] [LIMIT <n>]`
+- **Example**: `FIND Customer WHERE Age > 25 and name startswith 'j' INCLUDE Order WHERE Amount > 150 SELECT Amount, CustomerId INNERJOIN as New Table Name select Name, Amount`
+- **Supported Operators**: `=`, `!=`, `>`, `<`, `>=`, `<=`, `contains`, `startswith`, `endswith`, `not contains`, `not startswith`, `not endswith`, `is null`, `is not null`, `is empty`.
+
+## Join Operations
+
+- **Inner Join**: Combines records from the primary table (e.g., `Customer`) and related table (e.g., `Order`) based on a foreign key (e.g., `Customer.Id` and `Order.CustomerId`).
+- **Programmatic**: Use `Execute("InnerJoin [as <tableName>] Select <columns>")` to join results.
+- **Natural**: Use `INNERJOIN [as <tableName>] select <columns>` in the query string.
+- **Multi-Word Table Names**: Supported (e.g., `New Table Name`), allowing flexible naming for joined tables.
+
+## Error Handling
+
+- **Exceptions**: The library throws `ArgumentException` for invalid query formats, `InvalidOperationException` for missing methods or relationships, and custom exceptions for database errors.
+- **Event**: Subscribe to `ExceptionOccurred` to handle errors:
+  ```csharp
+  db.Query.ExceptionOccurred += (sender, args) => Console.WriteLine($"Error: {args.Exception.Message}");
+  ```
+
+## Limitations
+
+- **Single Include for Joins**: Currently supports joining one related table in `INNERJOIN` operations.
+- **Column Aliases**: The `INNERJOIN select` clause uses original column names or aliases defined in `Find`/`Include`, not new aliases.
+- **Foreign Key Assumption**: Joins assume a foreign key relationship (e.g., `CustomerId` in `Order` linking to `Id` in `Customer`).
 
 ## Closing or Unloading IoTDB
 Unloading or closing IoTDB is not necessary. The library handles closure and recovery automatically. However, incomplete or unwritten data will be lost if your program ends or crashes during a data write.
