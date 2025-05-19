@@ -15,12 +15,12 @@ public class IotDatabase
     private string _flPath;
     
 
-    private ConcurrentDictionary<string, dynamic> _tables = new();
-    internal ConcurrentDictionary<string, TableInfo> _tableInfos = new();
+    private ConcurrentDictionary<string, ITableCollection> _tables = new();
+    //internal ConcurrentDictionary<string, TableInfo> _tableInfos = new();
 
     private ConcurrentDictionary<string, IFileCollection> _files = new();
     internal readonly string _password;
-
+    private QueryEngine _query;
 
     public IotDatabase(string dbName, string dbPath, string? password)
     {
@@ -32,34 +32,61 @@ public class IotDatabase
         if (!Directory.Exists(_tsPath)) throw new DirectoryNotFoundException($"Unable to create timeseries directory. {_tsPath}");
         if (!Directory.Exists(_tbPath)) throw new DirectoryNotFoundException($"Unable to create tables directory. {_tbPath}");
         if (!Directory.Exists(_flPath)) throw new DirectoryNotFoundException($"Unable to create files directory. {_flPath}");
-       
-
+        _query = new QueryEngine(this);
     }
+
+    #region Query
+    public QueryEngine Query { get { return _query; } }
+    #endregion
 
     #region Tables
     public string TableDbPath { get { return _tbPath; } }
+
+    public List<ITableCollection> Tables()
+    {
+        List<ITableCollection> tables = new List<ITableCollection>();
+        foreach (var table in _tables)
+        {
+            tables.Add(table.Value);
+        }
+        return tables;
+    }
+
+    public ITableCollection? GetTable(Type type, string tableName)
+    {
+        if (type.Name.Equals(tableName, StringComparison.OrdinalIgnoreCase))
+        {
+            return GetTable(tableName);
+        }
+       return GetTable($"{tableName}_{type.Name}");
+    }
+
     public ITableCollection<T> Tables<T>() where T : class
     {
         string tableName = typeof(T).Name;
-        if (!_tables.ContainsKey(tableName))
-        {
-            _tables[tableName] = new TableCollection<T>(this);
-            ((TableCollection<T>)_tables[tableName]).ExceptionOccurred += OnExceptionOccurred;
-        }
-        
-        return (ITableCollection<T>)_tables[tableName];
+        return GetOrAddTable<T>(tableName);
     }
 
     public ITableCollection<T> Tables<T>(string tableName) where T : class
     {
-        tableName = $"{tableName}_{typeof(T).Name}";
-        if (!_tables.ContainsKey(tableName))
+        if (!string.IsNullOrEmpty(tableName) && !typeof(T).Name.Equals(tableName))
         {
-            _tables[tableName] = new TableCollection<T>(this, tableName);
-            ((TableCollection<T>)_tables[tableName]).ExceptionOccurred += OnExceptionOccurred;
+            tableName = $"{tableName}_{typeof(T).Name}";
+        } else
+        {
+            tableName = typeof(T).Name;
         }
 
-        return (ITableCollection<T>)_tables[tableName];
+            return GetOrAddTable<T>(tableName);
+    }
+
+    private ITableCollection<T> GetOrAddTable<T>(string tableName) where T : class
+    {
+        var table = _tables.GetOrAdd(tableName, key =>
+        {
+            return CreateTable<T>(tableName);
+        });
+        return (ITableCollection<T>)table;
     }
 
     internal ITableCollection? GetTable(string tableName)
@@ -72,6 +99,15 @@ public class IotDatabase
         }
         return null;
     }
+
+    internal ITableCollection<T> CreateTable<T>(string tableName = "") where T : class
+    {
+        tableName = string.IsNullOrEmpty(tableName) ? typeof(T).Name : tableName;
+        var table = new TableCollection<T>(this, tableName);
+        table.ExceptionOccurred += OnExceptionOccurred;
+        return table;
+    }
+
 
     #endregion
 
@@ -92,6 +128,7 @@ public class IotDatabase
         }
     }
 
+    
 
     #region Files
 

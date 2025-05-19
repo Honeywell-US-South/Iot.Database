@@ -1,4 +1,6 @@
-﻿using System.Linq.Expressions;
+﻿using Iot.Database.Attributes;
+using Iot.Database.Helper;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -24,6 +26,7 @@ internal abstract class BaseDatabase : IDisposable
 
     public BaseDatabase(string dbPath, string dbName, string? password, double backgroundTaskFromMilliseconds = 100)
     {
+        if (!DbValidator.IsValidDbName(dbName)) throw new Exception(dbName + " is not a valid database name. Name must be a valid file name and less than 128 characters.");
         int logicalProcessorCount = Environment.ProcessorCount;
         _numThreads = logicalProcessorCount > 1 ? logicalProcessorCount - 1 : 1;
         _dbName = dbName;
@@ -241,30 +244,24 @@ internal abstract class BaseDatabase : IDisposable
 
     internal static void SetGlobalIgnore<T>()
     {
-        PropertyInfo[] properties = typeof(T).GetProperties();
-        foreach (var property in properties)
+        var foreignTables = Helper.ReflectionHelper.GetTypeColumnsWithAttribute<TableForeignEntityAttribute>(typeof(T)).ToList();
+        var childTables = Helper.ReflectionHelper.GetTypeColumnsWithAttribute<TableChildNavigationAttribute>(typeof(T)).ToList();
+
+        //PropertyInfo[] properties = typeof(T).GetProperties();
+        foreach (var info in foreignTables)
         {
-            if (property.PropertyType.IsGenericType &&
-                property.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
-            {
-                Type refTableType = property.PropertyType.GetGenericArguments()[0];
-                if (GetIdProperty(refTableType) != null && GetRefTableIdProperty(typeof(T), refTableType) != null)
-                {
-                    if (property.Name.Equals($"{refTableType.Name}Table"))
-                    {
-                        IgnoreProperty<T>(property);
-                    }
+            IgnoreProperty<T>(info.PropertyInfo);
+        }
 
-                }
-
-            }
+        foreach (var info in childTables)
+        {
+            IgnoreProperty<T>(info.PropertyInfo);
         }
     }
 
     internal static void IgnoreProperty<T>(PropertyInfo propertyInfo)
     {
         // Get the PropertyInfo object for the property name
-
         if (propertyInfo == null) return;
 
         // Build an expression tree to represent the property access
@@ -272,8 +269,12 @@ internal abstract class BaseDatabase : IDisposable
         var propertyAccess = Expression.Property(parameter, propertyInfo);
         var lambda = Expression.Lambda<Func<T, object>>(Expression.Convert(propertyAccess, typeof(object)), parameter);
 
-        // Use the expression tree to ignore the property
-        BsonMapper.Global.Entity<T>().Ignore(lambda);
+        try
+        {
+            // Use the expression tree to ignore the property
+            BsonMapper.Global.Entity<T>().Ignore(lambda);
+        }
+        catch { /*if failed, means it doesn't exist to ignore. or already ignored.*/}
     }
 
     

@@ -5,7 +5,7 @@ namespace Iot.Database.Users;
 public class Permission
 {
     public Guid Id { get; set; }
-    [TableForeignKey(typeof(User),TableConstraint.Cascading, RelationshipOneTo.Many)]
+    [TableForeignKey(typeof(User),null, TableConstraint.Cascading, RelationshipOneTo.Many)]
     public Guid UserId { get; set; }
     public string Resource { get; set; } = "*";// e.g., table name, file name
     public ActionFlags Actions { get; set; } = ActionFlags.None; // e.g., read, write, delete

@@ -7,69 +7,51 @@ namespace Example.BasicDb
     {
         static void Main(string[] args)
         {
-
-
             // Specify database name and path
             var dbName = "MyIotDatabase";
             var dbPath = @"c:\temp";
 
             // Create an instance of IoTData
-            var iotData = new IotDatabase(dbName, dbPath, "encryption password");
+            var db = new IotDatabase(dbName, dbPath, "encryption password");
+            
+            // Populate some test data
+            var customerTable = db.Tables<Customer>();
+            //customerTable.Insert(new Customer { Id = 1, Name = "John", Age = 30 });
+            //customerTable.Insert(new Customer { Id = 2, Name = "Jane", Age = 25 });
 
-            // Create a table with the class name as the table name
-            var friendTbl = iotData.Tables<Friend>();
+            var orderTable = db.Tables<Order>();
+            //orderTable.Insert(new Order { Id = 1, CustomerId = 1, Amount = 150.00m });
+            //orderTable.Insert(new Order { Id = 2, CustomerId = 1, Amount = 200.00m });
+            //orderTable.Insert(new Order { Id = 3, CustomerId = 2, Amount = 100.00m });
 
-            //Fine one record in the database table friend name Bob
-            var friend = friendTbl.FindOne(x => x.Name.Equals("bob", StringComparison.OrdinalIgnoreCase));
-            if (friend == null)
-            { //bod doesn't exist
+            var addressTable = db.Tables<Address>();
+            //addressTable.Insert(new Address { Id = 1, CustomerId = 1, AddressLine1 = "123 Main St" });
+            //addressTable.Insert(new Address { Id = 2, CustomerId = 2, AddressLine1 = "456 Elm St" });
 
-                //create a new friend
-                friend = new Friend() { Name = "Bob" };
+            // Join Customer and Order tables   
+            // Query with Include
+            // Using original Find/Include methods
+            var resultsProgrammatic = db.Query
+                .Find<Customer>("Customer", c => c.Age > 25, "Name as Person", "Age")
+                .Include<Order>("Order", o => o.Amount > 100, "Amount as Total")
+                .Include<Address>("Address", a => a.AddressLine1.Contains("Main"), "AddressLine1 as Address")
+                .Execute("Join as my table Select Person, Total, Address");
 
-                //insert friend to database table 
-                var id = friendTbl.Insert(friend);
-
-                //successfull insert return the Id of the new record.
-                //The insert also update the friend variable's Id property.
-                if (id.IsNull)
-                {
-                    Console.WriteLine("Failed to insert.");
-                    return;
-                }
+            Console.WriteLine("Programmatic Query Results:");
+            foreach (var result in resultsProgrammatic)
+            {
+                Console.WriteLine($"{result.TableName} Result: {result.Data}");
             }
 
-            //display record
-            Console.WriteLine($"Success: Id [{friend.Id}] Name [{friend.Name}]");
+            // Using new NaturalQuery method
+            var resultsNatural = db.Query.NaturalQuery("FIND Customer WHERE Age > 25 and name startswith 'j' INCLUDE Order WHERE Amount > 150 SELECT Amount, CustomerId JOIN as New Table Name select Name, Amount");
 
-            //************************** Table Name *************************
-
-
-            // Create another table with the class name as the table name but called it Best Friend
-            var bestFriendTbl = iotData.Tables<Friend>("Best Friend");
-
-            // Fine one record in the database table friend name Bob
-            var bff = bestFriendTbl.FindOne(x => x.Name.Equals("bob", StringComparison.OrdinalIgnoreCase));
-            if (bff == null)
-            { //bod doesn't exist
-
-                //create a new friend
-                bff = new Friend() { Name = "Bob" };
-
-                //insert friend to database table 
-                var id = bestFriendTbl.Insert(bff);
-
-                //successfull insert return the Id of the new record.
-                //The insert also update the friend variable's Id property.
-                if (id.IsNull)
-                {
-                    Console.WriteLine("Failed to insert.");
-                    return;
-                }
+            Console.WriteLine("\nNatural Query Results:");
+            foreach (var result in resultsNatural)
+            {
+                Console.WriteLine($"Result: {result.Data}");
             }
 
-            //display record
-            Console.WriteLine($"Best Friend table. Success: Id [{bff.Id}] Name [{bff.Name}]");
         }
     }
 

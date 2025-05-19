@@ -42,44 +42,91 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
     /// <param name="tblName"></param>
     public TableCollection(IotDatabase iotDb, string tblName = "") : base(iotDb.TableDbPath, string.IsNullOrEmpty(tblName) ? typeof(T).Name : tblName, iotDb._password)
     {
+        //Check if table is minimum configured with Id property
         PreCheck();
-        SetGlobalIgnore<T>();
-        //_blockChainAttributes = ReflectionHelper.GetTypeColumnsWithAttribute<BlockChainValueAttribute>(typeof(T)).ToList();
+
+        //reference back to iotDb
         _iotDb = iotDb;
-        TableInfo = new TableInfo(typeof(T));
+        
+        //Set table information
+        TableInfo = new TableInfo(typeof(T), base.DbName);
+
+        //Ignore navigation properties
+        SetGlobalIgnore<T>();
+
+        //Check if the foreign table references are valid
         foreach (var ft in TableInfo.ForeignTables)
         {
-            if (ft.Name.EndsWith("Table"))
+            
+            var attribute = ft.Attribute as TableForeignEntityAttribute;
+            if (attribute == null) throw new InvalidConstraintException($"Foreign table attribute not found for {ft.Name}.");
+            foreach (var key in attribute.ForeignKeys)
             {
-                var name = ft.Name.Substring(0, ft.Name.Length - "Table".Length);
-                var idName = $"{name}Id";
-                if (!TableInfo.ForeignKeys.Any(x => x.Name == idName))
+                //check if the foreign table referenced has a foreign key
+                var fk = TableInfo.ForeignKeys.FirstOrDefault(x => x.Name == key);
+                if (fk == null)
                 {
                     throw new InvalidConstraintException($"Table doesn't have Foreign Key for referenced Foreign Table name {ft.Name}.");
                 }
-            }
-        }
-        if (_iotDb != null)
-        {
-            _iotDb._tableInfos[TableInfo.Name] = TableInfo;
-            foreach (var table in _iotDb._tableInfos)
-            {
-                foreach (var fk in table.Value.ForeignKeys)
-                {
-                    if (fk.Name.EndsWith("Id"))
-                    {
-                        var name = fk.Name.Substring(0, fk.Name.Length - "Id".Length);
-                        var tf = _iotDb._tableInfos.FirstOrDefault(x => x.Key == name).Value;
-                        if (tf == null) continue;
-                        if (!tf.ChildTables.Any(x => x.Name == table.Key))
-                        {
-                            tf.ChildTables.Add(table.Value);
-                        }
+                
+                //Check if the foreign key has a valid table to reference too
+                var fka = fk.Attribute as TableForeignKeyAttribute;
 
-                    }
+                if (fka == null) throw new InvalidConstraintException($"Foreign key attribute not found for {fk.Name}.");
+                if (!_iotDb.Tables().Any(x=>x.TableInfo.Name.Equals(fka.TableName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new InvalidConstraintException($"Foreign key table {fka.TableName} not found. Please initialize foreign table [{fka.TableName}] before create link.");
                 }
             }
         }
+
+        //foreach (var child in TableInfo.ChildTables)
+        //{
+        //    // Check if the foreign table name ends with "Table"
+        //    var attribute = child.Attribute as TableChildNavigationAttribute;
+        //    if (attribute == null) throw new InvalidConstraintException($"Child table attribute not found for {child.Name}.");
+        //    foreach (var key in attribute.ForeignKeys)
+        //    {
+        //        var idName = key;
+        //        bool found = false;
+        //        foreach (var table in _iotDb._tableInfos)
+        //        {
+
+        //            if (table.Value.ForeignKeys.Any(x => x.Name == idName))
+        //            {
+        //                found = true;
+        //                break;
+        //            }
+                   
+        //        }
+        //        if (!found)
+        //        {
+        //            throw new InvalidConstraintException($"Table doesn't have Foreign Key for referenced Child Table name {child.Name}.");
+        //        }
+        //    }
+
+        //}
+        //if (_iotDb != null)
+        //{
+        //   //iotDb._tableInfos[TableInfo.Name] = TableInfo;
+        //    var tables = _iotDb.Tables();
+            
+        //        foreach (var fk in TableInfo.ForeignKeys)
+        //        {
+        //            if (fk.Name.EndsWith("Id"))
+        //            {
+        //                var name = fk.Name.Substring(0, fk.Name.Length - "Id".Length);
+        //                var tf = tables.FirstOrDefault(x => x.TableInfo.Name == name)?.TableInfo;
+        //                if (tf == null) continue;
+        //                if (!tf.Children.Any(x => x.Name == table.TableInfo.Name))
+        //                {
+        //                    tf.Children.Add(table.TableInfo);
+        //                }
+
+        //            }
+        //        }
+            
+        //}
         _collection = Database.GetCollection<T>(_collectionName);
 
         Task.Run(() => ProcessIotValueQueue(_cts.Token));
@@ -271,10 +318,10 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
 
         lock (SyncRoot)
         {
-            if (_iotDb !=null && _iotDb._tableInfos[typeof(T).Name].ChildTables.Count > 0)
-            {
+           // var tables = _iotDb?.Tables();
+            
                 //no child has multiple foreign keys. Now try to delete
-                foreach (var child in _iotDb._tableInfos[typeof(T).Name].ChildTables)
+                foreach (var child in TableInfo.Children)
                 {
                     //get child table
                     var table = _iotDb.GetTable(child.Name);
@@ -340,7 +387,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
                         }
                     }
                 }
-            }
+            
             var result = _collection.Delete(id);
             return result;
         }
@@ -366,10 +413,9 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
         lock (SyncRoot)
         {
             var col = Collection;
-            if (_iotDb != null && _iotDb._tableInfos[typeof(T).Name].ChildTables.Count > 0)
-            {
+            
                 //no child has multiple foreign keys. Now try to delete
-                foreach (var child in _iotDb._tableInfos[typeof(T).Name].ChildTables)
+                foreach (var child in TableInfo.Children)
                 {
                     var table = _iotDb.GetTable(child.Name);
                     if (table == null) continue;
@@ -407,7 +453,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
                         }
                     }
                 }
-            }
+            
             return col.DeleteAll();
         }
 
@@ -734,8 +780,45 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
     /// </summary>
     public T FindOne(Expression<Func<T, bool>> predicate)
     {
-
-        return _collection.FindOne(predicate);
+        var data = _collection.FindOne(predicate);
+        if (_iotDb != null && data != null)
+        {
+            foreach (var ft in TableInfo.ForeignTables)
+            {
+                var attribute = ft.Attribute as TableForeignEntityAttribute;
+                if (attribute == null) throw new InvalidConstraintException($"Foreign table attribute not found for {ft.Name}.");
+                foreach (var key in attribute.ForeignKeys)
+                {
+                    var fk = TableInfo.ForeignKeys.FirstOrDefault(x => x.Name == key);
+                    if (fk == null)
+                    {
+                        throw new InvalidConstraintException($"Table doesn't have Foreign Key for referenced Foreign Table name {ft.Name}.");
+                    }
+                    var val = fk.PropertyInfo.GetValue(data, null);
+                    if (val != null)
+                    {
+                        var fka = fk.Attribute as TableForeignKeyAttribute;
+                        if (fka == null) throw new InvalidConstraintException($"Foreign key attribute not found for {fk.Name}.");
+                        var table = _iotDb.GetTable(fka.TableName ?? "");
+                        if (table != null)
+                        {
+                            var parentRecords = table.Find("Id", val.ToString(), Base.Comparison.Equals);
+                            if (parentRecords.Count > 0)
+                            {
+                                var parentRecord = parentRecords.FirstOrDefault();
+                                if (parentRecord != null)
+                                {
+                                    ft.PropertyInfo.SetValue(data, parentRecord, null);
+                                    
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return data;
 
     }
     /// <summary>
@@ -910,6 +993,7 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
 
                 TableInfo.Id?.PropertyInfo.SetValue(entity, id, null);
                 _collection.Insert(id, entity);
+
                 AddToQueue(entity);
                 return id;
             }
@@ -1174,7 +1258,13 @@ internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : 
         lock (SyncRoot)
         {
             AddToQueue(entity);
-            return _collection.Update(entity);
+            foreach(var fe in TableInfo.ChildTables)
+            {
+
+            }
+            var col = _collection.Update(entity);
+
+            return col;
         }
 
     }

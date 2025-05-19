@@ -5,7 +5,7 @@ namespace Iot.Database.TimeSeries.ValueDeltaT;
 public class DeltaT
 {
     public int Id { get; set; }
-    [TableForeignKey(typeof(BaseValue), TableConstraint.Cascading, RelationshipOneTo.Many,"")]
+    [TableForeignKey(typeof(BaseValue), null, TableConstraint.Cascading, RelationshipOneTo.Many,"")]
     public Guid BaseValueId { get; set; }
     public int Group { get; set; }
     public List<int> TimeDeltas { get; set; } = new List<int>();

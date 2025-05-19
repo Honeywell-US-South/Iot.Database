@@ -7,6 +7,7 @@ namespace Iot.Database
 
     public interface ITableCollection
     {
+        TableInfo TableInfo { get; }
         BsonAutoId AutoId { get; }
         EntityMapper EntityMapper { get; }
         string Name { get; }
@@ -72,7 +73,7 @@ namespace Iot.Database
         
         K Min<K>(Expression<Func<T, K>> keySelector);
         //ILiteQueryable<T> Query();
-        QueryBuilder<T>? Query();
+        //QueryBuilder<T>? Query();
 
         bool Update(BsonValue id, T entity);
         int Update(IEnumerable<T> entities);

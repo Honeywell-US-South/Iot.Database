@@ -1,11 +1,5 @@
-﻿using Iot.Database.Attributes;
-using Iot.Database.Table;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using Iot.Database.Table;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Iot.Database.Helper
 {
