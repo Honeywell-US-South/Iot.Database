@@ -1,13 +1,7 @@
-﻿using Iot.Database.Engine;
-using Iot.Database.LiteDB.Document;
-using System;
-using System.Collections.Generic;
+﻿using Iot.Database.LiteDB.Document;
 using System.Diagnostics;
-using System.Globalization;
-using System.Reflection.Metadata.Ecma335;
-using System.Text;
 using System.Text.Json;
-using static Iot.Database.Constants;
+using System.Text.Json.Serialization;
 
 namespace Iot.Database
 {
@@ -223,21 +217,27 @@ namespace Iot.Database
         #region Convert types
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public BsonArray AsArray => this as BsonArray;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public BsonDocument AsDocument => this as BsonDocument;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public Byte[] AsBinary => this.RawValue as Byte[];
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool AsBoolean => (bool)this.RawValue;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public string AsString => this?.RawValue?.ToString()??string.Empty;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public JsonDocument? AsJson
         {
             get
@@ -265,6 +265,7 @@ namespace Iot.Database
         }
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public BsonT? AsBsonT => BsonT.ToBsonT(RawValue.ToString());
 
         public T? AsBsonTObject<T>()
@@ -288,58 +289,147 @@ namespace Iot.Database
         }
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public int AsInt32 => Convert.ToInt32(this.RawValue);
+        [JsonIgnore]
+        public int AsInt32
+        {
+            get
+            {
+                try
+                {
+                    return Convert.ToInt32(this.RawValue);
+                }
+                catch { return int.MinValue; }
+            }
+        }
 
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public long AsInt64 => Convert.ToInt64(this.RawValue);
+                [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
+        public long AsInt64
+        {
+            get
+            {
+                try
+                {
+                    return Convert.ToInt64(this.RawValue);
+                }
+                catch { return long.MinValue; }
+            }
+        }
 
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public double AsDouble => Convert.ToDouble(this.RawValue);
+                [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
+        public double AsDouble
+        {
+            get
+            {
+                try
+                {
+                    return Convert.ToDouble(this.RawValue);
+                }
+                catch { return double.MinValue; }
+            }
+        }
 
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public decimal AsDecimal => Convert.ToDecimal(this.RawValue);
 
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public DateTime AsDateTime => (DateTime)this.RawValue;
+                [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
+        public decimal AsDecimal
+        {
+            get
+            {
+                try
+                {
+                    return Convert.ToDecimal(this.RawValue);
+                }
+                catch { return decimal.MinValue; }
+            }
+        }
 
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public ObjectId AsObjectId => (ObjectId)this.RawValue;
 
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public Guid AsGuid => (Guid)this.RawValue;
+                [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
+        public DateTime AsDateTime
+        {
+            get
+            {
+                try
+                {
+                    return (DateTime)this.RawValue;
+                }
+                catch { return DateTime.MinValue; }
+            }
+        }
 
-        #endregion
+                [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
+        public ObjectId AsObjectId
+        {
+            get
+            {
+                try
+                {
+                    return (ObjectId)this.RawValue;
+                }
+                catch { return ObjectId.Empty; }
+            }
+        }
 
-        #region IsTypes
+                [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
+        public Guid AsGuid
+        {
+            get
+            {
+                try
+                {
+                    return (Guid)this.RawValue;
+                }
+                catch { return Guid.Empty; }
+            }
+        }
 
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+                #endregion
+
+                #region IsTypes
+
+                [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsNull => this.Type == BsonType.Null;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsArray => this.Type == BsonType.Array;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsDocument => this.Type == BsonType.Document;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsInt32 => this.Type == BsonType.Int32;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsInt64 => this.Type == BsonType.Int64;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsDouble => this.Type == BsonType.Double;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsDecimal => this.Type == BsonType.Decimal;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsNumber => double.TryParse(this.AsString, out _);
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsBinary => this.Type == BsonType.Binary;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsBsonT
         {
             get
@@ -355,12 +445,15 @@ namespace Iot.Database
             }
         }
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsBoolean => this.Type == BsonType.Boolean;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsString => this.Type == BsonType.String;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsJson
         {
             get
@@ -388,18 +481,23 @@ namespace Iot.Database
         }
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsObjectId => this.Type == BsonType.ObjectId;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsGuid => this.Type == BsonType.Guid;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsDateTime => this.Type == BsonType.DateTime;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsMinValue => this.Type == BsonType.MinValue;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        [JsonIgnore]
         public bool IsMaxValue => this.Type == BsonType.MaxValue;
 
         #endregion

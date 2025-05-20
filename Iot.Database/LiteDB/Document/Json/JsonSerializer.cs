@@ -126,7 +126,22 @@ namespace Iot.Database
             };
 
             // Deserialize the JSON string to an object
-            return System.Text.Json.JsonSerializer.Deserialize<T>(jsonString, options);
+            //return System.Text.Json.JsonSerializer.Deserialize<T>(jsonString, options);
+
+            try
+            {
+                using (JsonDocument.Parse(jsonString))
+                {
+                    return System.Text.Json.JsonSerializer.Deserialize<T>(jsonString, options);
+                }
+            } catch (JsonException)
+            {
+                if(typeof(T) == typeof(string))
+                {
+                    return (T)(object)jsonString;
+                }
+                return default;
+            }
         }
         #endregion
     }

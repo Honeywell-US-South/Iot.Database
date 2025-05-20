@@ -6,6 +6,30 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Title>IoT Database</Title>
+    <!-- Version properties for NuGet package and assembly -->
+    <Version>0.0.20</Version>
+    <!-- NuGet package and default assembly version -->
+    <AssemblyVersion>0.0.20.0</AssemblyVersion>
+    <!-- Assembly version (optional, defaults to Version) -->
+    <FileVersion>0.0.20.0</FileVersion>
+    <!-- File version (optional, defaults to Version) -->
+    <!-- NuGet package metadata -->
+    <Description>A lightweight, embedded database for IoT applications with support for programmatic and natural language queries.</Description>
+    <Authors>YourName or Company</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <!-- Or specify your license -->
+    <PackageProjectUrl>https://github.com/your-repo/iot-database</PackageProjectUrl>
+    <!-- Optional -->
+    <RepositoryUrl>https://github.com/your-repo/iot-database</RepositoryUrl>
+    <!-- Optional -->
+    <PackageTags>iot database embedded queryengine</PackageTags>
+    <!-- Enable NuGet package generation on build -->
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <!-- Optional: auto-generate package -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <!-- Optional: include debug symbols -->
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <!-- Optional: format for symbol package -->
   </PropertyGroup>
 
   <ItemGroup>
