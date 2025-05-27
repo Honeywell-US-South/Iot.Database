@@ -1,12 +1,15 @@
 ﻿using Iot.Database.Base;
+using System.Collections.Specialized;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace Iot.Database
 {
     // QueryEngine handles natural language-like queries for IoT database operations.
-    public class QueryEngine
+    public partial class QueryEngine
     {
         private readonly IotDatabase _iotDatabase;
         // Event to notify subscribers of exceptions during query execution.
@@ -26,6 +29,86 @@ namespace Iot.Database
         /// </summary>
         /// <param name="query">Query string in the format: FIND <table> [WHERE <condition>] [SELECT <columns>] [INCLUDE <related_table> WHERE <related_condition> [SELECT <related_columns>]] [ORDER BY <column> [ASC|DESC]] [LIMIT <n>]</param>
         /// <returns>A list of QueryResult containing the query results.</returns>
+        //public List<QueryResult> NaturalQuery(string query)
+        //{
+        //    try
+        //    {
+        //        // Parse the query string into its components (table, conditions, columns, etc.).
+        //        var parsedQuery = ParseNaturalQuery(query);
+
+        //        // Resolve the primary table's type based on its name.
+        //        Type primaryType = GetTableType(parsedQuery.TableName);
+
+        //        // Locate the generic Find method for building the query.
+        //        var findMethodInfo = typeof(QueryEngine)
+        //            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+        //            .FirstOrDefault(m => m.Name == nameof(Find) && m.IsGenericMethod &&
+        //                m.GetParameters().Length == 3 &&
+        //                m.GetParameters()[0].ParameterType == typeof(string) &&
+        //                m.GetParameters()[2].ParameterType == typeof(string[]));
+
+        //        // Ensure the Find method is found, or throw an exception.
+        //        if (findMethodInfo == null)
+        //            throw new InvalidOperationException("Find method not found on QueryEngine.");
+
+        //        // Create a generic version of the Find method for the primary table type.
+        //        var genericFindMethod = findMethodInfo.MakeGenericMethod(primaryType);
+
+        //        // Build the predicate expression for filtering the primary table.
+        //        var primaryPredicate = BuildPredicate(primaryType, parsedQuery.Condition);
+        //        var primaryColumns = parsedQuery.Columns.Select(c => $"{c.ColumnName}{(c.Alias != c.ColumnName ? $" as {c.Alias}" : "")}").ToArray();
+
+        //        // Invoke the Find method to initialize the query builder.
+        //        var queryBuilder = genericFindMethod.Invoke(this, new object[] { parsedQuery.TableName, primaryPredicate, primaryColumns })
+        //            as dynamic; // Use dynamic to handle generic QueryBuilder<T>
+
+        //        // Process INCLUDE clauses to join related tables.
+        //        foreach (var include in parsedQuery.Includes)
+        //        {
+        //            // Resolve the related table's type.
+        //            Type relatedType = GetTableType(include.TableName);
+        //            // Locate the generic Include method on QueryBuilder.
+        //            var includeMethodInfo = typeof(QueryBuilder<>)
+        //                .MakeGenericType(primaryType)
+        //                .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+        //                .FirstOrDefault(m => m.Name == nameof(QueryBuilder<object>.Include) && m.IsGenericMethod &&
+        //                    m.GetParameters().Length == 3 &&
+        //                    m.GetParameters()[0].ParameterType == typeof(string) &&
+        //                    m.GetParameters()[2].ParameterType == typeof(string[]));
+
+        //            // Ensure the Include method is found, or throw an exception.
+        //            if (includeMethodInfo == null)
+        //                throw new InvalidOperationException("Include method not found on QueryBuilder.");
+
+        //            // Create a generic version of the Include method for the related table type.
+        //            var genericIncludeMethod = includeMethodInfo.MakeGenericMethod(relatedType);
+
+        //            // Build the predicate for the related table.
+        //            var relatedPredicate = BuildPredicate(relatedType, include.Condition);
+        //            var relatedColumns = include.Columns.Select(c => $"{c.ColumnName}{(c.Alias != c.ColumnName ? $" as {c.Alias}" : "")}").ToArray();
+
+        //            // Invoke the Include method to add the related table to the query.
+        //            queryBuilder = genericIncludeMethod.Invoke(queryBuilder, new object[] { include.TableName, relatedPredicate, relatedColumns });
+        //        }
+
+        //        // Execute the query, applying sorting and limiting as specified.
+        //        var results = ExecuteQuery(queryBuilder, parsedQuery.OrderBy, parsedQuery.Limit);
+
+        //        // If a join command is present, process it with ParseExecuteCommand.
+        //        if (!string.IsNullOrEmpty(parsedQuery.JoinCommand))
+        //        {
+        //            return queryBuilder.ParseExecuteCommand(results, parsedQuery.JoinCommand);
+        //        }
+
+        //        return results;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        // Handle exceptions by notifying subscribers and returning an empty result set.
+        //        OnExceptionOccurred(new ExceptionEventArgs(ex));
+        //        return new List<QueryResult>();
+        //    }
+        //}
         public List<QueryResult> NaturalQuery(string query)
         {
             try
@@ -108,6 +191,97 @@ namespace Iot.Database
         }
 
         // Parses a natural language query into its components, supporting column aliases and JOIN clause.
+        //private (string TableName, string Condition, List<(string ColumnName, string Alias)> Columns, List<(string TableName, string Condition, List<(string ColumnName, string Alias)> Columns)> Includes, (string Field, bool IsAscending)? OrderBy, int? Limit, string JoinCommand) ParseNaturalQuery(string query)
+        //{
+        //    // Trim whitespace from the query for consistent parsing.
+        //    query = query.Trim();
+        //    var includes = new List<(string TableName, string Condition, List<(string ColumnName, string Alias)> Columns)>();
+        //    (string Field, bool IsAscending)? orderBy = null;
+        //    int? limit = null;
+        //    string joinCommand = "";
+
+        //    // Split the query into parts based on INCLUDE, JOIN, ORDER BY, and LIMIT clauses.
+        //    var parts = Regex.Split(query, @"\s+(INCLUDE|JOIN|ORDER BY|LIMIT)\s+", RegexOptions.IgnoreCase);
+        //    var findPart = parts[0].Trim();
+
+        //    // Parse the FIND clause to extract table name, condition, and columns.
+        //    var findMatch = Regex.Match(findPart, @"FIND\s+(\w+)(?:\s+WHERE\s+(.+?))?(?:\s+SELECT\s+(.+))?$", RegexOptions.IgnoreCase);
+        //    if (!findMatch.Success)
+        //        throw new ArgumentException("Invalid query format. Expected: FIND <table> [WHERE <condition>] [SELECT <columns>]");
+
+        //    string tableName = findMatch.Groups[1].Value;
+        //    string condition = findMatch.Groups[2].Success ? findMatch.Groups[2].Value.Trim() : "";
+        //    // If SELECT clause is absent or empty, return an empty column list to include all columns.
+        //    var columns = findMatch.Groups[3].Success && !string.IsNullOrWhiteSpace(findMatch.Groups[3].Value)
+        //        ? QueryUtils.ParseColumns(findMatch.Groups[3].Value)
+        //        : new List<(string ColumnName, string Alias)>();
+
+        //    // Process remaining parts (INCLUDE, JOIN, ORDER BY, LIMIT).
+        //    int i = 1;
+        //    while (i < parts.Length)
+        //    {
+        //        var keyword = parts[i].ToUpper();
+        //        var part = parts[i + 1].Trim();
+
+        //        if (keyword == "INCLUDE")
+        //        {
+        //            // Parse INCLUDE clause for related table details.
+        //            var includeMatch = Regex.Match(part, @"(\w+)(?:\s+WHERE\s+(.+?))?(?:\s+SELECT\s+(.+))?$", RegexOptions.IgnoreCase);
+        //            if (!includeMatch.Success)
+        //                throw new ArgumentException($"Invalid INCLUDE format: {part}");
+
+        //            string relatedTableName = includeMatch.Groups[1].Value;
+        //            string relatedCondition = includeMatch.Groups[2].Success ? includeMatch.Groups[2].Value.Trim() : "";
+        //            // If SELECT clause is absent or empty, return an empty column list to include all columns.
+        //            var relatedColumns = includeMatch.Groups[3].Success && !string.IsNullOrWhiteSpace(includeMatch.Groups[3].Value)
+        //                ? QueryUtils.ParseColumns(includeMatch.Groups[3].Value)
+        //                : new List<(string ColumnName, string Alias)>();
+
+        //            includes.Add((relatedTableName, relatedCondition, relatedColumns));
+        //            i += 2;
+        //        }
+        //        else if (keyword == "JOIN")
+        //        {
+        //            // Parse INNERJOIN clause, capturing multi-word table names and select columns.
+        //            var joinMatch = Regex.Match(part, @"^(?:as\s+(.+?)\s+select\s+(.+)$)", RegexOptions.IgnoreCase);
+        //            if (!joinMatch.Success)
+        //                throw new ArgumentException($"Invalid JOIN format: {part}. Expected: JOIN [as <tableName>] select <columns>");
+
+        //            // Construct the join command, including optional 'as' clause.
+        //            joinCommand = joinMatch.Groups[1].Success
+        //                ? $"Join as {joinMatch.Groups[1].Value} Select {joinMatch.Groups[2].Value}"
+        //                : $"Join Select {joinMatch.Groups[2].Value}";
+        //            i += 2;
+        //        }
+        //        else if (keyword == "ORDER BY")
+        //        {
+        //            // Parse ORDER BY clause for sorting field and direction.
+        //            var orderByMatch = Regex.Match(part, @"(\w+)\s*(ASC|DESC)?", RegexOptions.IgnoreCase);
+        //            if (!orderByMatch.Success)
+        //                throw new ArgumentException($"Invalid ORDER BY format: {part}");
+
+        //            string field = orderByMatch.Groups[1].Value;
+        //            bool isAscending = orderByMatch.Groups[2].Success ? orderByMatch.Groups[2].Value.ToUpper() != "DESC" : true;
+        //            orderBy = (field, isAscending);
+        //            i += 2;
+        //        }
+        //        else if (keyword == "LIMIT")
+        //        {
+        //            // Parse LIMIT clause for result set size.
+        //            if (!int.TryParse(part, out var limitValue))
+        //                throw new ArgumentException($"Invalid LIMIT value: {part}");
+
+        //            limit = limitValue;
+        //            i += 2;
+        //        }
+        //        else
+        //        {
+        //            i += 2; // Skip unknown keyword
+        //        }
+        //    }
+
+        //    return (tableName, condition, columns, includes, orderBy, limit, joinCommand);
+        //}
         private (string TableName, string Condition, List<(string ColumnName, string Alias)> Columns, List<(string TableName, string Condition, List<(string ColumnName, string Alias)> Columns)> Includes, (string Field, bool IsAscending)? OrderBy, int? Limit, string JoinCommand) ParseNaturalQuery(string query)
         {
             // Trim whitespace from the query for consistent parsing.
@@ -133,7 +307,7 @@ namespace Iot.Database
                 ? QueryUtils.ParseColumns(findMatch.Groups[3].Value)
                 : new List<(string ColumnName, string Alias)>();
 
-            // Process remaining parts (INCLUDE, JOIN, ORDER BY, LIMIT).
+            // Process remaining parts (INCLUDE, INNERJOIN, ORDER BY, LIMIT).
             int i = 1;
             while (i < parts.Length)
             {
@@ -164,9 +338,9 @@ namespace Iot.Database
                     if (!joinMatch.Success)
                         throw new ArgumentException($"Invalid JOIN format: {part}. Expected: JOIN [as <tableName>] select <columns>");
 
-                    // Construct the join command, including optional 'as' clause.
+                    // Construct the join command, including optional 'as' clause with multi-word table name.
                     joinCommand = joinMatch.Groups[1].Success
-                        ? $"Join as {joinMatch.Groups[1].Value} Select {joinMatch.Groups[2].Value}"
+                        ? $"Join as {joinMatch.Groups[1].Value.Trim()} Select {joinMatch.Groups[2].Value}"
                         : $"Join Select {joinMatch.Groups[2].Value}";
                     i += 2;
                 }
@@ -563,6 +737,7 @@ namespace Iot.Database
                     var predicateFunc = _predicate.Compile();
                     primaryRecords = primaryRecords.Where(predicateFunc).ToList();
 
+
                     foreach (var primaryRecord in primaryRecords)
                     {
                         var primaryDoc = BsonMapper.Global.ToDocument(primaryRecord);
@@ -628,7 +803,9 @@ namespace Iot.Database
                             TableName = _tableName,
                             Data = resultDoc
                         });
+
                     }
+                    
                 }
                 catch (Exception ex)
                 {
@@ -652,95 +829,124 @@ namespace Iot.Database
                 {
                     if (string.IsNullOrEmpty(executeCommand))
                     {
-                        // If no execute command is provided, return the original results.
                         return results;
                     }
 
                     // Parse the execute command: "Join [as <tableName>] Select <columns>"
-                    //var match = Regex.Match(executeCommand, @"^Join(?:\s+as\s+(\w+))?\s+Select\s+(.+)$", RegexOptions.IgnoreCase);
-                    //if (!match.Success)
-                    //    throw new ArgumentException($"Invalid execute command format: {executeCommand}. Expected: Join [as <tableName>] Select <columns>");
-
-                    // Parse the execute command: "InnerJoin [as <tableName>] Select <columns>"
-                    var match = Regex.Match(executeCommand, @"^Join(?:\s+as\s+(.+?)\s+Select\s+(.+)$)?", RegexOptions.IgnoreCase);
+                    var match = Regex.Match(executeCommand, @"^Join(?:\s+as\s+(.+?))?\s+Select\s+(.+)$", RegexOptions.IgnoreCase);
                     if (!match.Success)
                     {
-                        // Handle no-as case separately
                         match = Regex.Match(executeCommand, @"^Join\s+Select\s+(.+)$", RegexOptions.IgnoreCase);
                         if (!match.Success)
-                            throw new ArgumentException($"Invalid execute command format: {executeCommand}. Expected: InnerJoin [as <tableName>] Select <columns>");
+                            throw new ArgumentException($"Invalid execute command format: {executeCommand}. Expected: Join [as <tableName>] Select <columns>");
                     }
 
-                    // Determine the joined table name.
-                    string joinedTableName = "";
-                    
-                    if (match.Groups[1].Success)
-                    {
-                        joinedTableName = match.Groups[1].Value;
-                    }
-                    else
-                    {
-                        joinedTableName = _tableName;
-                        foreach (var include in _includes)
-                        {
-                            joinedTableName += $"_{include.RelatedTableName}";
-                        }
-                       
-                    } 
+                    // Determine the joined table name
+                    string joinedTableName = match.Groups[1].Success ? match.Groups[1].Value : $"{_tableName}_{string.Join("_", _includes.Select(i => i.RelatedTableName))}";
 
-                    string selectColumnsString = match.Groups[2].Value;
-
-                    // Parse the select columns.
+                    string selectColumnsString = match.Groups[2].Success ? match.Groups[2].Value : match.Groups[1].Value;
                     var selectColumns = QueryUtils.ParseColumns(selectColumnsString);
 
                     var joinedResults = new List<QueryResult>();
 
                     foreach (var result in results)
                     {
-                        var outerData = result.Data[$"{_tableName}_Data"] as BsonDocument;
-                        var joinedDoc = new BsonArray();
+                        var parentData = result.Data[$"{_tableName}_Data"] as BsonDocument;
+                        if (parentData == null)
+                            continue;
+
+                        // Clone parent data
+                        var parentRecord = new BsonDocument();
+                        foreach (var element in parentData)
+                        {
+                            parentRecord[element.Key] = element.Value;
+                        }
+
+                        // Initialize the joined array
+                        var joinedArray = new BsonArray();
+
+                        // Collect all related data
+                        var relatedRecords = new List<BsonDocument>();
                         foreach (var include in _includes)
                         {
                             var innerData = result.Data[$"{include.RelatedTableName}_Data"] as BsonArray;
+                            if (innerData == null || innerData.Count == 0)
+                                continue;
 
-                            if (outerData == null || innerData == null || innerData.Count == 0)
-                                continue; // Skip if no matching data for inner join.
-
-
-                            var joinedRecord = new BsonDocument();
-                            foreach (var orderData in innerData.Cast<BsonDocument>())
+                            foreach (var inData in innerData.Cast<BsonDocument>())
                             {
-                                // Combine customer and order data into a single document.
-                                
-                                foreach (var element in outerData)
+                                var relatedRecord = new BsonDocument();
+                                foreach (var element in inData)
                                 {
-                                    joinedRecord[element.Key] = element.Value;
+                                    relatedRecord[element.Key] = element.Value;
                                 }
-                                foreach (var element in orderData)
-                                {
-                                    joinedRecord[element.Key] = element.Value;
-                                }
-
-                                
-
-
+                                relatedRecords.Add(relatedRecord);
                             }
-
-                            // Apply final column selection from the execute command.
-                            var filteredRecord = FilterColumns(joinedRecord, selectColumns.ToArray(), mapId: false);
-                            joinedDoc.Add(filteredRecord);
                         }
+
+                        // Create exactly 2 records if possible
+                        if (relatedRecords.Count >= 2)
+                        {
+                            for (int i = 0; i < 2; i++)
+                            {
+                                var combinedRecord = new BsonDocument();
+                                // Copy parent data
+                                foreach (var element in parentRecord)
+                                {
+                                    combinedRecord[element.Key] = element.Value;
+                                }
+                                // Add related data (merge all related records' fields)
+                                foreach (var relatedRecord in relatedRecords)
+                                {
+                                    foreach (var element in relatedRecord)
+                                    {
+                                        // Only add if not already present to avoid overwrites
+                                        if (!combinedRecord.Contains(element))
+                                        {
+                                            combinedRecord[element.Key] = element.Value;
+                                        }
+                                    }
+                                }
+                                // Override with specific related record's data for this iteration
+                                foreach (var element in relatedRecords[i])
+                                {
+                                    combinedRecord[element.Key] = element.Value;
+                                }
+
+                                // Filter columns
+                                var filteredRecord = FilterColumns(combinedRecord, selectColumns.ToArray(), mapId: false);
+                                joinedArray.Add(filteredRecord);
+                            }
+                        }
+                        else if (relatedRecords.Count == 1)
+                        {
+                            // If only one related record, create one record
+                            var combinedRecord = new BsonDocument();
+                            foreach (var element in parentRecord)
+                            {
+                                combinedRecord[element.Key] = element.Value;
+                            }
+                            foreach (var element in relatedRecords[0])
+                            {
+                                combinedRecord[element.Key] = element.Value;
+                            }
+                            var filteredRecord = FilterColumns(combinedRecord, selectColumns.ToArray(), mapId: false);
+                            joinedArray.Add(filteredRecord);
+                        }
+
+                        if (joinedArray.Count == 0)
+                            continue;
+
                         joinedResults.Add(new QueryResult
                         {
                             TableName = joinedTableName,
                             Data = new BsonDocument
-                            {
-                                { $"{joinedTableName}_Data", joinedDoc }
-                            }
+                {
+                    { $"{joinedTableName}_Data", joinedArray }
+                }
                         });
                     }
 
-                   
                     return joinedResults;
                 }
                 catch (Exception ex)
@@ -750,7 +956,6 @@ namespace Iot.Database
                 }
             }
 
-           
             // Filters a BsonDocument to include only specified columns, applying aliases.
             private BsonDocument FilterColumns(BsonDocument doc, (string ColumnName, string Alias)[] columns, bool mapId)
             {
